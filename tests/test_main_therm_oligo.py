@@ -73,7 +73,7 @@ def_params = {
 
 concs = CONCS
 
-def aux_create_pychem_sim(params,concs, model, normalise=False):
+def aux_create_pychem_sim(params,concs, model):
 
     signal_fx = map_two_state_model_to_signal_fx(model)
 
@@ -113,7 +113,7 @@ def aux_create_pychem_sim(params,concs, model, normalise=False):
 
     pychem_sim.set_signal(['Fluo'])
 
-    pychem_sim.select_conditions(normalise_to_global_max=normalise)
+    pychem_sim.select_conditions()
     pychem_sim.expand_multiple_signal()
 
 
@@ -146,6 +146,15 @@ def test_set_model():
 
     pytest.raises(ValueError, sample.set_model, "test_false")
 
+    sample.set_model("Monomer", "monomeric")
+    assert sample.model == "Monomer_monomeric_intermediate"
+
+    sample.set_model("dimer", "Dimeric")
+    assert sample.model == "Dimer_dimeric_intermediate"
+
+    pytest.raises(ValueError, sample.set_model, "Monomer", "test_fail")
+
+    pytest.raises(ValueError, sample.set_model, "Monomer", "dimeric")
 
 def test_set_concentrations():
 
@@ -157,25 +166,14 @@ def test_set_concentrations():
 def test_select_conditions():
     sample.set_signal(['350nm'])
 
-    # Select without scaling
     sample.select_conditions(
-        [False for _ in range(24)] + [True for _ in range(8)] + [False for _ in range(16)],
-        normalise_to_global_max=False
+        [False for _ in range(24)] + [True for _ in range(8)] + [False for _ in range(16)]
     )
 
     assert len(sample.signal_lst_multiple) == 1
     assert len(sample.signal_lst_multiple[0]) == 8
     assert np.max(sample.signal_lst_multiple[0]) != 1.0
 
-    # Select with scaling
-    sample.select_conditions(
-        [False for _ in range(24)] + [True for _ in range(8)] + [False for _ in range(16)],
-        normalise_to_global_max=True
-    )
-
-    assert len(sample.signal_lst_multiple) == 1
-    assert len(sample.signal_lst_multiple[0]) == 8
-    assert np.max(sample.signal_lst_multiple[0]) == 100
 
 def test_guess_Cp():
 
@@ -218,9 +216,6 @@ def test_fit_thermal_unfolding_global_global_global_scaling():
     for i, C in enumerate(scale_concs):
         y = signal_fx(temp_range_K, C, **def_params)
 
-        # Concentration dependent scaling
-        y = y * C
-
         # Add gaussian error to simulated signal
         y += rng.normal(0, 0.02, len(y))
 
@@ -245,7 +240,7 @@ def test_fit_thermal_unfolding_global_global_global_scaling():
 
     pychem_sim.set_signal('Simulated signal')
 
-    pychem_sim.select_conditions(normalise_to_global_max=True)
+    pychem_sim.select_conditions()
     pychem_sim.expand_multiple_signal()
 
     pychem_sim.estimate_baseline_parameters(
@@ -315,7 +310,7 @@ def test_fit_thermal_unfolding_global_global_global_monomer():
 
     monomer_sim.fit_thermal_unfolding_global_global_global(model_scale_factor=True)
 
-    np.testing.assert_allclose(monomer_sim.params_df.iloc[[0, 1, 2, 3, 4, 5, 6, 9], 1], expected, rtol=0.2, atol=1.5)
+    np.testing.assert_allclose(monomer_sim.params_df.iloc[[0, 1, 2, 3, 4, 5, 6, 7], 1], expected, rtol=0.2, atol=1.5)
 
 # Testing Dimer model
 def_params['dHm'] = def_params['dHm'] + DHm_INCREASE
@@ -371,7 +366,7 @@ def test_fit_thermal_unfolding_global_global_global_dimer():
 
     dimer_sim.fit_thermal_unfolding_global_global_global(model_scale_factor=True)
 
-    np.testing.assert_allclose(dimer_sim.params_df.iloc[[0, 1, 2, 3, 4, 5, 6, 9], 1], expected, rtol=0.2, atol=1.5)
+    np.testing.assert_allclose(dimer_sim.params_df.iloc[[0, 1, 2, 3, 4, 5, 6, 7], 1], expected, rtol=0.2, atol=1.5)
 
 
 # Testing Trimer model
@@ -428,7 +423,7 @@ def test_fit_thermal_unfolding_global_global_global_trimer():
 
     trimer_sim.fit_thermal_unfolding_global_global_global(model_scale_factor=True)
 
-    np.testing.assert_allclose(trimer_sim.params_df.iloc[[0, 1, 2, 3, 4, 5, 6, 9], 1], expected, rtol=0.2, atol=1.5)
+    np.testing.assert_allclose(trimer_sim.params_df.iloc[[0, 1, 2, 3, 4, 5, 6, 7], 1], expected, rtol=0.2, atol=1.5)
 
 
 # Testing Tetramer model
@@ -485,28 +480,12 @@ def test_fit_thermal_unfolding_global_global_global_tetramer():
 
     tetramer_sim.fit_thermal_unfolding_global_global_global(model_scale_factor=True)
 
-    np.testing.assert_allclose(tetramer_sim.params_df.iloc[[0, 1, 2, 3, 4, 5, 6, 9], 1], expected, rtol=0.2, atol=1.5)
+    np.testing.assert_allclose(tetramer_sim.params_df.iloc[[0, 1, 2, 3, 4, 5, 6, 7], 1], expected, rtol=0.2, atol=1.5)
 
 # generating failing fit
 
 def_params['dHm'] = 120
 trimer_sim_fail = aux_create_pychem_sim(def_params, concs, "Trimer")
-
-def test_fit_thermal_unfolding_global_warning():
-
-    with pytest.warns(UserWarning):
-        trimer_sim_fail.fit_thermal_unfolding_global()
-
-# generating failing fit
-
-def_params['dHm'] = 120
-trimer_sim_fail_normalise = aux_create_pychem_sim(def_params, concs, "Trimer", normalise=True)
-
-def test_fit_thermal_unfolding_global_warning_normalise():
-
-    with pytest.warns(UserWarning):
-        trimer_sim_fail_normalise.fit_thermal_unfolding_global()
-
 
 
 def test_signal_to_df():

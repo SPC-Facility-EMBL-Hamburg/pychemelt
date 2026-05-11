@@ -22,6 +22,9 @@ __all__ = [
     "fit_oligomer_unfolding_single_slopes",
     "fit_oligomer_unfolding_shared_slopes_many_signals",
     "fit_oligomer_unfolding_many_signals",
+    "fit_oligomer_unfolding_three_states_single_slopes",
+    "fit_oligomer_unfolding_three_states_shared_slopes_many_signals",
+    #"fit_oligomer_unfolding_three_states_many_signals",
 ]
 
 def baseline_fx_name_to_req_params(baseline_fx_name):
@@ -180,7 +183,7 @@ def fit_exponential_robust(x,y):
 
     low_bounds = [0, 0]
 
-    high_bounds = [1e6, 1e6]
+    high_bounds = [1e7, 1e7]
 
     for alpha in alpha_seq:
 
@@ -817,6 +820,220 @@ def fit_oligomer_unfolding_single_slopes(
 
     return global_fit_params, cov, predicted_lst
 
+def fit_oligomer_unfolding_three_states_single_slopes(
+        list_of_temperatures,
+        list_of_signals,
+        oligomer_concentrations,
+        initial_parameters,
+        low_bounds,
+        high_bounds,
+        signal_fx,
+        baseline_native_fx,
+        baseline_unfolded_fx,
+        t1=None,
+        t2=None,
+        dh1=None,
+        dh2=None,
+        CpTh_value=None,
+):
+    """
+    Vectorized and optimized version of global thermal unfolding fitting. of oligomers
+
+    Parameters
+    ----------
+    list_of_temperatures : list of array-like
+        Temperature arrays for each dataset
+    list_of_signals : list of array-like
+        Signal arrays for each dataset
+    oligomer_concentrations : list
+        oligomer concentrations (one per dataset)
+    initial_parameters : array-like
+        Initial guess for parameters
+    low_bounds : array-like
+        Lower bounds for parameters
+    high_bounds : array-like
+        Upper bounds for parameters
+    signal_fx : callable
+        Signal model function
+    baseline_native_fx : callable
+        function to calculate the native state baseline
+    baseline_unfolded_fx : callable
+        function to calculate the unfolded state baseline
+    t1, t2 : float, optional
+        Values for the unfolding temperatures one and two
+    dh1, dh2 : float, optional
+        Values for the unfolding enthalpy one and two
+    CpTh_value : float, optional
+        Value for the total Cp of the system, enabling fitting of Cp1
+
+    Returns
+    -------
+    global_fit_params : numpy.ndarray
+    cov : numpy.ndarray
+    predicted_lst : list of numpy.ndarray
+    """
+
+    # ------------------------------------------------------------
+    # Precompute dataset structure
+    # ------------------------------------------------------------
+    n_datasets = len(list_of_temperatures)
+    lengths = np.array([len(T) for T in list_of_temperatures])
+
+    list_of_temperatures = [temperature_to_kelvin(T) for T in list_of_temperatures]
+
+    T_all = np.concatenate(list_of_temperatures)
+    y_all = np.concatenate(list_of_signals)
+
+    C_all = np.repeat(oligomer_concentrations, lengths)
+
+    # ------------------------------------------------------------
+    # Baseline parameter requirements (resolved ONCE)
+    # ------------------------------------------------------------
+    use_p2N, use_p3N = baseline_fx_name_to_req_params(baseline_native_fx)
+    use_p2U, use_p3U = baseline_fx_name_to_req_params(baseline_unfolded_fx)
+
+    # Convert the Tm to kelvin
+    if not t1:
+        initial_parameters[0] = temperature_to_kelvin(initial_parameters[0])
+        low_bounds[0] = temperature_to_kelvin(low_bounds[0])
+        high_bounds[0] = temperature_to_kelvin(high_bounds[0])
+    else:
+        initial_parameters[0]= temperature_to_kelvin(t1)
+        low_bounds[0] = initial_parameters[0] - 20
+        high_bounds[0] = initial_parameters[0] + 20
+
+    if not t2:
+        initial_parameters[2] = temperature_to_kelvin(initial_parameters[2])
+        low_bounds[2] = temperature_to_kelvin(low_bounds[2])
+        high_bounds[2] = temperature_to_kelvin(high_bounds[2])
+    else:
+        initial_parameters[2]= temperature_to_kelvin(t2)
+        low_bounds[2] = initial_parameters[2] - 20
+        high_bounds[2] = initial_parameters[2] + 20
+
+    if dh1:
+        initial_parameters[1] = dh1
+        low_bounds[1] = dh1 - 50
+        high_bounds[1] = dh1 + 50
+
+    if dh2:
+        initial_parameters[3] = dh2
+        low_bounds[3] = dh2 - 50
+        high_bounds[3] = dh2 + 50
+
+
+    def unfolding(_, *params):
+
+        """
+        Calculate the thermal unfolding profile of many curves at the same time
+
+        Requires:
+
+            - The 'T_all' containing the temperatures as a single dataset
+            - The 'C_all' containing the concentrations as a single dataset
+
+        The other arguments have to be in the following order:
+
+            - Global melting temperature for the first transition
+            - Global enthalpy of unfolding for the first transition
+            - Global melting temperature for the second transition
+            - Global enthalpy of unfolding for the second transition
+            - Single intercepts, folded
+            - Single intercepts, unfolded
+            - Single intercepts, intermediate
+            - Single slopes or pre-exp terms, folded
+            - Single slopes or pre-exp terms, unfolded
+            - Single quadratic or exponential coefficients, folded
+            - Single quadratic or exponential coefficients, unfolded
+
+        Returns:
+
+            The melting curves based on the parameters Temperature of melting, enthalpy of unfolding,
+                slopes and intercept of the folded and unfolded states
+
+        """
+
+        # ---- Global thermodynamics ----
+
+
+        Tm1, DHm1, Tm2, DHm2 = params[:4]
+        i = 4
+
+        # Handling Cp values
+        if CpTh_value is not None:
+            Cp1 = params[i]
+            CpTh = CpTh_value
+            i += 1
+        else:
+            Cp1 = 0.0
+            CpTh = 0.0
+
+        # ---- Dataset-specific parameters ----
+        p1N = np.repeat(params[i:i + n_datasets], lengths)
+        i += n_datasets
+
+        p1U = np.repeat(params[i:i + n_datasets], lengths)
+        i += n_datasets
+
+        bI = np.repeat(params[i:i + n_datasets], lengths)
+        i += n_datasets
+
+        if use_p2N:
+            p2N = np.repeat(params[i:i + n_datasets], lengths)
+            i += n_datasets
+        else:
+            p2N = 0.0
+
+        if use_p2U:
+            p2U = np.repeat(params[i:i + n_datasets], lengths)
+            i += n_datasets
+        else:
+            p2U = 0.0
+
+        if use_p3N:
+            p3N = np.repeat(params[i:i + n_datasets], lengths)
+            i += n_datasets
+        else:
+            p3N = 0.0
+
+        if use_p3U:
+            p3U = np.repeat(params[i:i + n_datasets], lengths)
+            i += n_datasets
+        else:
+            p3U = 0.0
+
+        # ---- Single vectorized signal evaluation ----
+        return signal_fx(
+                T_all,C_all, Tm1, DHm1, Tm2, DHm2,
+                0, p1N, p2N, p3N,
+                0, p1U, p2U, p3U,
+                baseline_native_fx,
+                baseline_unfolded_fx,
+                bI,
+                Cp1,CpTh,
+            )
+
+
+    global_fit_params, cov = curve_fit(
+        unfolding, 1.0, y_all,
+        p0=initial_parameters, bounds=(low_bounds, high_bounds)
+    )
+
+    predicted_all = unfolding(1.0, *global_fit_params)
+
+    predicted_lst = []
+    start = 0
+    for n in lengths:
+        predicted_lst.append(predicted_all[start:start + n])
+        start += n
+
+    # Convert the Tm back to Celsius
+
+    global_fit_params[0] = temperature_to_celsius(global_fit_params[0])
+    global_fit_params[2] = temperature_to_celsius(global_fit_params[2])
+
+    return global_fit_params, cov, predicted_lst
+
 
 def fit_tc_unfolding_shared_slopes_many_signals(
     list_of_temperatures,
@@ -1168,6 +1385,216 @@ def fit_oligomer_unfolding_shared_slopes_many_signals(
 
     return global_fit_params, cov, predicted_lst
 
+def fit_oligomer_unfolding_three_states_shared_slopes_many_signals(
+    list_of_temperatures,
+    list_of_signals,
+    signal_ids,
+    oligomer_concentrations,
+    initial_parameters,
+    low_bounds,
+    high_bounds,
+    signal_fx,
+    baseline_native_fx,
+    baseline_unfolded_fx,
+    t1=None,
+    t2=None,
+    dh1=None,
+    dh2=None,
+    CpTh_value=None,
+):
+    """
+    Vectorized fitting of oligomer thermal unfolding curves for multiple signal types
+    sharing thermodynamic parameters and slopes, using least_squares.
+
+    Parameters
+    ----------
+    list_of_temperatures : list of array-like
+        Temperature arrays for each dataset.
+    list_of_signals : list of array-like
+        Signal arrays for each dataset.
+    signal_ids : list of int
+        Signal-type id for each dataset (0..n_signals-1)
+    oligomer_concentrations : list
+        Oligomer concentrations for each dataset (flattened across signals)
+    initial_parameters : array-like
+        Initial guess for the parameters
+    low_bounds : array-like
+        Lower bounds for the parameters
+    high_bounds : array-like
+        Upper bounds for the parameters
+    signal_fx : callable
+        Signal model function
+     baseline_native_fx : callable
+        function to calculate the baseline for the native state
+    baseline_unfolded_fx : callable
+        function to calculate the baseline for the unfolded state
+    t1, t2 : float, optional
+        Values for the unfolding temperatures one and two
+    dh1, dh2 : float, optional
+        Values for the unfolding enthalpy one and two
+    CpTh_value : float, optional
+        Value for the total Cp of the system, enabling fitting of Cp1
+
+    Returns
+    -------
+    global_fit_params : numpy.ndarray
+         Fitted global parameters
+    cov : numpy.ndarray
+        Covariance matrix
+    predicted_lst : list of numpy.ndarray
+        Predicted signals per dataset
+
+    """
+
+    # Flatten all signals
+    all_signal = np.concatenate(list_of_signals, axis=0)
+    n_signals = np.max(signal_ids) + 1
+    n_datasets = len(list_of_temperatures)
+
+    list_of_temperatures = [temperature_to_kelvin(T) for T in list_of_temperatures]
+
+    baseline_native_params = baseline_fx_name_to_req_params(baseline_native_fx)
+    baseline_unfolded_params = baseline_fx_name_to_req_params(baseline_unfolded_fx)
+
+    # Precompute indices for slicing the flattened concatenated arrays
+    dataset_starts = np.cumsum([0] + [len(T) for T in list_of_temperatures][:-1])
+    dataset_ends = np.cumsum([len(T) for T in list_of_temperatures])
+
+    # Convert the Tm to kelvin
+    if not t1:
+        initial_parameters[0] = temperature_to_kelvin(initial_parameters[0])
+        low_bounds[0] = temperature_to_kelvin(low_bounds[0])
+        high_bounds[0] = temperature_to_kelvin(high_bounds[0])
+    else:
+        initial_parameters[0]= temperature_to_kelvin(t1)
+        low_bounds[0] = np.max([initial_parameters[0] - 20, 271])
+        high_bounds[0] = initial_parameters[0] + 20
+
+    if not t2:
+        initial_parameters[2] = temperature_to_kelvin(initial_parameters[2])
+        low_bounds[2] = temperature_to_kelvin(low_bounds[2])
+        high_bounds[2] = temperature_to_kelvin(high_bounds[2])
+    else:
+        initial_parameters[2]= temperature_to_kelvin(t2)
+        low_bounds[2] = np.max([initial_parameters[2] - 20, 271])
+        high_bounds[2] = initial_parameters[2] + 20
+
+    if dh1:
+        initial_parameters[1] = dh1
+        low_bounds[1] = dh1 - 50
+        high_bounds[1] = dh1 + 50
+
+    if dh2:
+        initial_parameters[3] = dh2
+        low_bounds[3] = dh2 - 50
+        high_bounds[3] = dh2 + 50
+
+    # Vectorized residuals function for least_squares
+    def residuals(params):
+        """
+        Calculate the thermal unfolding profile of many curves at the same time
+
+        Requires:
+
+            - The 'listOfTemperatures' containing each of them a single dataset
+
+        The other arguments have to be in the following order:
+
+            - Global melting temperature for the first transition
+            - Global enthalpy of unfolding for the first transition
+            - Global melting temperature for the second transition
+            - Global enthalpy of unfolding for the second transition
+            - Single intercepts, folded
+            - Single intercepts, unfolded
+            - Single intercepts, intermediate
+            - Single slopes or pre-exp terms, folded
+            - Single slopes or pre-exp terms, unfolded
+            - Single quadratic or exponential coefficients, folded
+            - Single quadratic or exponential coefficients, unfolded
+
+        Returns:
+
+            The melting curves based on the parameters Temperature of melting, enthalpy of unfolding,
+                slopes and intercept of the folded and unfolded states
+
+        """
+
+        Tm1, DHm1, Tm2, DHm2 = params[:4]
+        id_param = 4
+
+        # Handling Cp values
+        if CpTh_value is not None:
+            Cp1 = params[id_param]
+            CpTh = CpTh_value
+            id_param += 1
+        else:
+            Cp1 = 0.0
+            CpTh = 0.0
+
+        intercepts_folded = params[id_param:id_param + n_datasets]
+        intercepts_unfolded = params[id_param + n_datasets:id_param + n_datasets * 2]
+        intercepts_intermediates = params[id_param + 2 * n_datasets:id_param + n_datasets * 3]
+        id_param += n_datasets * 3
+
+        # Shared slopes / coefficients per signal type
+        p2_n_s = params[id_param:id_param + n_signals] if baseline_native_params[0] else np.zeros(n_signals)
+        id_param += n_signals if baseline_native_params[0] else 0
+
+        p2_u_s = params[id_param:id_param + n_signals] if baseline_unfolded_params[0] else np.zeros(n_signals)
+        id_param += n_signals if baseline_unfolded_params[0] else 0
+
+        p3_n_s = params[id_param:id_param + n_signals] if baseline_native_params[1] else np.zeros(n_signals)
+        id_param += n_signals if baseline_native_params[1] else 0
+
+        p3_u_s = params[id_param:id_param + n_signals] if baseline_unfolded_params[1] else np.zeros(n_signals)
+        id_param += n_signals if baseline_unfolded_params[1] else 0
+
+        # Vectorized evaluation for all datasets
+        predicted_all = np.zeros_like(all_signal)
+        for i, T in enumerate(list_of_temperatures):
+            start, end = dataset_starts[i], dataset_ends[i]
+            c = oligomer_concentrations[i]
+            sig_id = signal_ids[i]
+
+            predicted_all[start:end] = signal_fx(
+                T, c, Tm1, DHm1, Tm2, DHm2,
+                0, intercepts_folded[i], p2_n_s[sig_id], p3_n_s[sig_id],
+                0, intercepts_unfolded[i], p2_u_s[sig_id], p3_u_s[sig_id],
+                baseline_native_fx,
+                baseline_unfolded_fx,
+                intercepts_intermediates[i],
+                Cp1, CpTh,
+            )
+
+        return predicted_all - all_signal
+
+    # Run least_squares fit
+    res = least_squares(
+        residuals,
+        x0=initial_parameters,
+        bounds=(low_bounds, high_bounds),
+        method="trf",
+        max_nfev=2000
+    )
+
+    global_fit_params = res.x
+
+    # Compute robust covariance using pseudo-inverse
+    J = res.jac
+    dof = len(all_signal) - len(global_fit_params)
+    residual_variance = np.sum(res.fun**2) / dof
+    cov = np.linalg.pinv(J.T @ J) * residual_variance
+
+    # Convert predicted signal into list of arrays per dataset
+    predicted = res.fun + all_signal
+    predicted_lst = [predicted[start:end] for start, end in zip(dataset_starts, dataset_ends)]
+
+    # Convert the Tm back to Celsius
+    global_fit_params[0] = temperature_to_celsius(global_fit_params[0])
+    global_fit_params[2] = temperature_to_celsius(global_fit_params[2])
+
+    return global_fit_params, cov, predicted_lst
+
 def fit_tc_unfolding_many_signals(
         list_of_temperatures,
         list_of_signals,
@@ -1428,9 +1855,7 @@ def fit_oligomer_unfolding_many_signals(
         baseline_unfolded_fx,
         model_scale_factor=False,
         scale_factor_exclude_ids=[],
-        cp_value=None,
-        fit_native_olig_slope=True,
-        fit_unfolded_olig_slope=True):
+        cp_value=None):
     """
     Fit thermal unfolding curves of oligomers for many signals (optimized variant).
 
@@ -1462,8 +1887,6 @@ def fit_oligomer_unfolding_many_signals(
         IDs of scale factors to exclude / fix to 1
     cp_value : float or None, optional
         If provided, Cp is fixed to this value and not fitted
-    fit_native_olig_slope, fit_unfolded_olig_slope : bool, optional
-        Whetever to fit the dependence of the slopes of the baselines
 
    Returns
     -------
@@ -1485,8 +1908,8 @@ def fit_oligomer_unfolding_many_signals(
         # Sort them in ascending order to avoid issues when inserting
         scale_factor_exclude_ids = sorted(scale_factor_exclude_ids)
 
-    baseline_native_params = [fit_native_olig_slope] + baseline_fx_name_to_req_params(baseline_native_fx)
-    baseline_unfolded_params = [fit_unfolded_olig_slope] + baseline_fx_name_to_req_params(baseline_unfolded_fx)
+    baseline_native_params = baseline_fx_name_to_req_params(baseline_native_fx)
+    baseline_unfolded_params = baseline_fx_name_to_req_params(baseline_unfolded_fx)
 
     initial_parameters[0] = temperature_to_kelvin(initial_parameters[0])
     low_bounds[0] = temperature_to_kelvin(low_bounds[0])
@@ -1494,7 +1917,7 @@ def fit_oligomer_unfolding_many_signals(
 
     list_of_temperatures = [temperature_to_kelvin(T) for T in list_of_temperatures]
 
-    def unfolding(dummyVariable, *args):
+    def unfolding(dummyVariable, *params):
 
         """
         The parameters order is as follows:
@@ -1507,9 +1930,6 @@ def fit_oligomer_unfolding_many_signals(
             Temperature slope or term pre-exponential factor folded
             Temperature slope term or pre-exponential factor unfolded
 
-            Oligomer slope term folded
-            Oligomer slope term unfolded
-
             Quadratic coefficient or exponential coefficient folded
             Quadratic coefficient or exponential coefficient unfolded
 
@@ -1518,24 +1938,41 @@ def fit_oligomer_unfolding_many_signals(
         if cp_value is not None:
 
             Cp0 = cp_value
-            Tm, DHm = args[:2]  # Enthalpy of unfolding, Temperature of melting
-            id_param_init = 2
+            Tm, DHm = params[:2]  # Enthalpy of unfolding, Temperature of melting
+            id_param = 2
 
         else:
 
-            Tm, DHm, Cp0 = args[:3]  # Enthalpy of unfolding, Temperature of melting, Cp0
-            id_param_init = 3
+            Tm, DHm, Cp0 = params[:3]  # Enthalpy of unfolding, Temperature of melting, Cp0
+            id_param = 3
 
         # Intercept parameters
-        p2_Ns = args[id_param_init:id_param_init + n_signals]
-        p2_Us = args[id_param_init + n_signals:id_param_init + 2 * n_signals]
+        p1_Ns = params[id_param:id_param + n_signals]
+        p1_Us = params[id_param + n_signals:id_param + 2 * n_signals]
 
-        id_param_init = id_param_init + 2 * n_signals
+        id_param_init = id_param + 2 * n_signals
 
         # Temperature slope or pre-exponential parameters
+        if baseline_native_params[0]:
+
+            p2_Ns = params[id_param_init:id_param_init + n_signals]
+            id_param_init += n_signals
+
+        else:
+            p2_Ns = [0] * n_signals
+
+        if baseline_unfolded_params[0]:
+
+            p2_Us = params[id_param_init:id_param_init + n_signals]
+            id_param_init += n_signals
+
+        else:
+            p2_Us = [0] * n_signals
+
+        # Temperature-dependent quadratic or exponential coefficients
         if baseline_native_params[1]:
 
-            p3_Ns = args[id_param_init:id_param_init + n_signals]
+            p3_Ns = params[id_param_init:id_param_init + n_signals]
             id_param_init += n_signals
 
         else:
@@ -1543,51 +1980,15 @@ def fit_oligomer_unfolding_many_signals(
 
         if baseline_unfolded_params[1]:
 
-            p3_Us = args[id_param_init:id_param_init + n_signals]
+            p3_Us = params[id_param_init:id_param_init + n_signals]
             id_param_init += n_signals
 
         else:
             p3_Us = [0] * n_signals
 
-        # Oligomer slope parameters
-        if baseline_native_params[0]:
-
-            p1_Ns = args[id_param_init:id_param_init + n_signals]
-            id_param_init += n_signals
-
-        else:
-
-            p1_Ns = [0] * n_signals
-
-        if baseline_unfolded_params[0]:
-
-            p1_Us = args[id_param_init:id_param_init + n_signals]
-            id_param_init += n_signals
-
-        else:
-
-            p1_Us = [0] * n_signals
-
-        # Temperature-dependent quadratic or exponential coefficients
-        if baseline_native_params[2]:
-
-            p4_Ns = args[id_param_init:id_param_init + n_signals]
-            id_param_init += n_signals
-
-        else:
-            p4_Ns = [0] * n_signals
-
-        if baseline_unfolded_params[2]:
-
-            p4_Us = args[id_param_init:id_param_init + n_signals]
-            id_param_init += n_signals
-
-        else:
-            p4_Us = [0] * n_signals
-
         if model_scale_factor:
             # One per oligomer concentration
-            factors = args[id_param_init:id_param_init + (nr_olig - len(scale_factor_exclude_ids))]
+            factors = params[id_param_init:id_param_init + (nr_olig - len(scale_factor_exclude_ids))]
 
             for id_ex in scale_factor_exclude_ids:
                 factors = np.insert(factors, id_ex, 1)
@@ -1607,20 +2008,18 @@ def fit_oligomer_unfolding_many_signals(
             p2_U = p2_Us[signal_ids[i]]
             p3_N = p3_Ns[signal_ids[i]]
             p3_U = p3_Us[signal_ids[i]]
-            p4_N = p4_Ns[signal_ids[i]]
-            p4_U = p4_Us[signal_ids[i]]
 
             c = oligomer_concentrations[i]
 
+
             y = signal_fx(
                 T, c, Tm, DHm,
-                p1_N, p2_N, p3_N, p4_N,
-                p1_U, p2_U, p3_U, p4_U,
+                0, p1_N, p2_N, p3_N,
+                0, p1_U, p2_U, p3_U,
                 baseline_native_fx,
                 baseline_unfolded_fx,
                 Cp0
             )
-
 
             scale_factor = 1 if not model_scale_factor else factors[i]
 
@@ -1648,6 +2047,238 @@ def fit_oligomer_unfolding_many_signals(
 
     # Convert the Tm to Celsius
     global_fit_params[0] = temperature_to_celsius(global_fit_params[0])
+
+    return global_fit_params, cov, predicted_lst
+
+def fit_oligomer_unfolding_three_states_many_signals(
+        list_of_temperatures,
+        list_of_signals,
+        signal_ids,
+        oligomer_concentrations,
+        initial_parameters,
+        low_bounds, high_bounds,
+        signal_fx,
+        baseline_native_fx,
+        baseline_unfolded_fx,
+        CpTh_value=None,
+        model_scale_factor=False,
+        scale_factor_exclude_ids=[]):
+    """
+    Fit thermal unfolding curves of oligomers for many signals (optimized variant).
+
+    Parameters
+    ----------
+    list_of_temperatures : list of array-like
+        Temperature arrays for each dataset
+    list_of_signals : list of array-like
+        Signal arrays for each dataset
+    signal_ids : list of int
+        Signal-type id for each dataset (0..n_signals-1)
+    oligomer_concentrations : list
+        oligomer concentrations for each dataset (flattened across signals)
+    initial_parameters : array-like
+        Initial guess for the parameters
+    low_bounds : array-like
+        Lower bounds for the parameters
+    high_bounds : array-like
+        Upper bounds for the parameters
+    signal_fx : callable
+        Signal model function
+    baseline_native_fx : callable
+        function to calculate the native state baseline
+    baseline_unfolded_fx : callable
+        function to calculate the unfolded state baseline
+    CpTh_value : float, optional
+        Value for the total Cp of the system, enabling fitting of Cp1
+    model_scale_factor : bool, optional
+        If True, include a per-oligomeric concentration scale factor to account for intensity differences
+    scale_factor_exclude_ids : list, optional
+        IDs of scale factors to exclude / fix to 1
+   Returns
+    -------
+    global_fit_params : numpy.ndarray
+         Fitted global parameters
+    cov : numpy.ndarray
+        Covariance matrix
+    predicted_lst : list of numpy.ndarray
+        Predicted signals per dataset
+    """
+
+    all_signal = np.concatenate(list_of_signals, axis=0)
+
+    n_signals = np.max(signal_ids) + 1
+
+    nr_olig = int(len(oligomer_concentrations) / n_signals)
+
+    if len(scale_factor_exclude_ids) > 0 and model_scale_factor:
+        # Sort them in ascending order to avoid issues when inserting
+        scale_factor_exclude_ids = sorted(scale_factor_exclude_ids)
+
+    baseline_native_params = baseline_fx_name_to_req_params(baseline_native_fx)
+    baseline_unfolded_params = baseline_fx_name_to_req_params(baseline_unfolded_fx)
+
+    initial_parameters[0] = temperature_to_kelvin(initial_parameters[0])
+    low_bounds[0] = temperature_to_kelvin(low_bounds[0])
+    high_bounds[0] = temperature_to_kelvin(high_bounds[0])
+
+    initial_parameters[2] = temperature_to_kelvin(initial_parameters[2])
+    low_bounds[2] = temperature_to_kelvin(low_bounds[2])
+    high_bounds[2] = temperature_to_kelvin(high_bounds[2])
+
+    list_of_temperatures = [temperature_to_kelvin(T) for T in list_of_temperatures]
+
+    def unfolding(dummyVariable, *params):
+
+        """
+        Calculate the thermal unfolding profile of many curves at the same time
+
+        Requires:
+
+            - The 'listOfTemperatures' containing each of them a single dataset
+
+        The other arguments have to be in the following order:
+
+            - Global melting temperature for the first transition
+            - Global enthalpy of unfolding for the first transition
+            - Global melting temperature for the second transition
+            - Global enthalpy of unfolding for the second transition
+            - Optional global Cp1 value
+            - Single intercepts, folded
+            - Single intercepts, unfolded
+            - Single intercepts, intermediate
+            - Single slopes or pre-exp terms, folded
+            - Single slopes or pre-exp terms, unfolded
+            - Single quadratic or exponential coefficients, folded
+            - Single quadratic or exponential coefficients, unfolded
+
+        Returns:
+
+            The melting curves based on the parameters Temperature of melting, enthalpy of unfolding,
+                slopes and intercept of the folded and unfolded states
+
+        """
+
+
+        Tm1, DHm1, Tm2, DHm2 = params[:4]
+
+        id_param = 4
+
+        # Handling Cp prediction
+        if CpTh_value is not None:
+            Cp1 = params[id_param]
+            CpTh = CpTh_value
+            id_param += 1
+        else:
+            Cp1 = 0.0
+            CpTh = 0.0
+
+        # Intercept parameters
+        p1_Ns = params[id_param:id_param + n_signals]
+        p1_Us = params[id_param + n_signals:id_param + 2 * n_signals]
+        intercepts_intermediates = params[id_param + 2 * n_signals:id_param + n_signals * 3]
+
+        id_param_init = id_param + 3 * n_signals
+
+        # Temperature slope or pre-exponential parameters
+        if baseline_native_params[0]:
+
+            p2_Ns = params[id_param_init:id_param_init + n_signals]
+            id_param_init += n_signals
+
+        else:
+            p2_Ns = [0] * n_signals
+
+        if baseline_unfolded_params[0]:
+
+            p2_Us = params[id_param_init:id_param_init + n_signals]
+            id_param_init += n_signals
+
+        else:
+            p2_Us = [0] * n_signals
+
+
+        # Temperature-dependent quadratic or exponential coefficients
+        if baseline_native_params[1]:
+
+            p3_Ns = params[id_param_init:id_param_init + n_signals]
+            id_param_init += n_signals
+
+        else:
+            p3_Ns = [0] * n_signals
+
+        if baseline_unfolded_params[1]:
+
+            p3_Us = params[id_param_init:id_param_init + n_signals]
+            id_param_init += n_signals
+
+        else:
+            p3_Us = [0] * n_signals
+
+        if model_scale_factor:
+            # One per oligomer concentration
+            factors = params[id_param_init:id_param_init + (nr_olig - len(scale_factor_exclude_ids))]
+
+            for id_ex in scale_factor_exclude_ids:
+                factors = np.insert(factors, id_ex, 1)
+
+            # Repeat the list so have the same length as list_of_temperatures, equal to denaturant concentration * number of signals
+            factors = np.tile(factors, n_signals)
+
+            id_param_init += nr_olig
+
+        signal = []
+
+        for i, T in enumerate(list_of_temperatures):
+
+            p1_N = p1_Ns[signal_ids[i]]
+            p1_U = p1_Us[signal_ids[i]]
+            intercepts_intermediate = intercepts_intermediates[signal_ids[i]]
+            p2_N = p2_Ns[signal_ids[i]]
+            p2_U = p2_Us[signal_ids[i]]
+            p3_N = p3_Ns[signal_ids[i]]
+            p3_U = p3_Us[signal_ids[i]]
+
+            c = oligomer_concentrations[i]
+
+
+            y = signal_fx(
+                T, c, Tm1, DHm1, Tm2, DHm2,
+                0, p1_N, p2_N, p3_N,
+                0, p1_U, p2_U, p3_U,
+                baseline_native_fx,
+                baseline_unfolded_fx,
+                intercepts_intermediate,
+                Cp1,CpTh,
+            )
+
+            scale_factor = 1 if not model_scale_factor else factors[i]
+
+            y = y * scale_factor
+
+            signal.append(y)
+
+        return np.concatenate(signal, axis=0)
+
+
+    global_fit_params, cov = curve_fit(
+        unfolding, 1.0, all_signal,
+        p0=initial_parameters,
+        bounds=(low_bounds, high_bounds))
+
+    predicted = unfolding(1.0, *global_fit_params)
+
+    # Convert predict to list of lists
+    predicted_lst = []
+
+    init = 0
+    for T in list_of_temperatures:
+        n = len(T)
+        predicted_lst.append(predicted[init:init + n])
+        init += n
+
+    # Convert the Tm to Celsius
+    global_fit_params[0] = temperature_to_celsius(global_fit_params[0])
+    global_fit_params[2] = temperature_to_celsius(global_fit_params[2])
 
     return global_fit_params, cov, predicted_lst
 
@@ -1803,6 +2434,173 @@ def evaluate_need_to_refit(
 
     return re_fit, p0, low_bounds, high_bounds
 
+
+def evaluate_need_to_refit_three_state(
+        global_fit_params,
+        high_bounds,
+        low_bounds,
+        p0,
+        check_dh=True,
+        check_tm=True,
+        given_cp=False,
+        threshold=0.05,
+):
+    """
+    Check and expand parameter bounds when fitted parameters are too close to boundaries or if T1 is smaller than T2
+
+    Parameters
+    ----------
+    global_fit_params : array-like
+        Fitted parameters
+    high_bounds : array-like
+        Upper bounds
+    low_bounds : array-like
+        Lower bounds
+    p0 : array-like
+        Initial guess for parameters
+    check_dh, check_tm : bool, optional
+        Whether to check boundaries for DHms, and Tms respectively
+    given_cp : bool, optional
+        If a CpTh value is given the refitting structure needs to be adjusted. Currently there is no refitting when CpTh
+        is given
+    threshold : float, optional
+        Threshold to compare if the fitted parameters are too close to the boundaries
+
+    Returns
+    -------
+    re_fit : bool
+        True if a refit is recommended after bounds expansion
+    p0 : array-like
+        Updated initial parameters
+    low_bounds : array-like
+        Updated lower bounds
+    high_bounds : array-like
+        Updated upper bounds
+    """
+
+    # We need to create copies of the arrays, otherwise they will be overwritten
+    global_fit_params = global_fit_params.copy()
+    p0 = p0.copy()
+    high_bounds = high_bounds.copy()
+    low_bounds = low_bounds.copy()
+
+    re_fit = False
+
+    # Check Tms
+
+    # Check Tm1 is valid
+    if global_fit_params[0] < 0:
+        low_bounds[0] = 20
+        p0[0] = 30
+        high_bounds[0] = 90
+        re_fit = True
+
+    # Check the Tm1 boundary - upper
+    tm_diff = high_bounds[0] - global_fit_params[0]
+
+    # Expand the boundary if the Tm is too close to the boundary
+    if tm_diff < 6 and check_tm:
+        high_bounds[0] = global_fit_params[0] + 12
+        p0[0] = global_fit_params[0] + 5
+        re_fit = True
+
+    # Check the Tm1 boundary - lower
+    tm_diff = global_fit_params[0] - low_bounds[0]
+
+    # Expand the boundary if the Tm is too close to the boundary
+    if tm_diff < 6 and check_tm:
+        low_bounds[0] = max(global_fit_params[0] - 12, 271)
+        p0[0] = global_fit_params[0] - 5
+        re_fit = True
+
+    # Check Tm2 is valid
+    if global_fit_params[2] < 0:
+        low_bounds[2] = 20
+        p0[2] = 30
+        high_bounds[2] = 380
+        re_fit = True
+
+    # Check the Tm2 boundary - upper
+    tm_diff = high_bounds[2] - global_fit_params[2]
+
+    # Expand the boundary if the Tm is too close to the boundary
+    if tm_diff < 6 and check_tm:
+        high_bounds[2] = global_fit_params[2] + 12
+        p0[2] = global_fit_params[2] + 5
+        re_fit = True
+
+    # Check the Tm2 boundary - lower
+    tm_diff = global_fit_params[2] - low_bounds[2]
+
+    # Expand the boundary if the Tm is too close to the boundary
+    if tm_diff < 6 and check_tm:
+        low_bounds[2] = max(global_fit_params[2] - 12, 271)
+        p0[2] = global_fit_params[2] - 5
+        re_fit = True
+
+    # Check Tm1 smaller than Tm2
+
+    if global_fit_params[0] > global_fit_params[2]:
+        mid_point = (global_fit_params[0] + global_fit_params[2]) / 2
+
+        p0[0] = mid_point - 10
+        high_bounds[0] = mid_point + 5
+        low_bounds[0] = p0[0] - 12
+
+        p0[2] = mid_point + 10
+        high_bounds[2] = p0[2] + 12
+        low_bounds[2] = mid_point - 5
+
+        re_fit = True
+
+    # Check DHs
+
+    # Check the Dh1 boundary
+    dh_diff = high_bounds[1] - global_fit_params[1]
+    # Expand the boundary if the Dh is too close to the boundary
+    if dh_diff < 20 and check_dh:
+        high_bounds[1] = global_fit_params[1] + 80
+        p0[1] = global_fit_params[1] + 50
+        re_fit = True
+
+    # Check the Dh2 boundary
+    dh_diff = high_bounds[3] - global_fit_params[3]
+    # Expand the boundary if the Dh is too close to the boundary
+    if dh_diff < 20 and check_dh:
+        high_bounds[3] = global_fit_params[3] + 80
+        p0[3] = global_fit_params[3] + 50
+        re_fit = True
+
+    id_start = 4
+
+    # Adjust data for Cp1
+    if given_cp:
+        id_start += 1
+
+    difference_to_upper = np.array([np.abs((a - b) / a) if a != np.inf and a != 0 else np.inf for a, b in
+                                    zip(high_bounds[id_start:], global_fit_params[id_start:])])
+    difference_to_lower = np.array([np.abs((a - b) / a) if b != -np.inf and a != 0 else np.inf for a, b in
+                                    zip(global_fit_params[id_start:], low_bounds[id_start:])])
+
+    # Evaluate all the other parameters
+    for i in (range(len(global_fit_params) - id_start)):
+
+        diff_to_high_i = difference_to_upper[i]
+        diff_to_low_i = difference_to_lower[i]
+
+        if diff_to_high_i < threshold:
+            value = high_bounds[i + id_start]
+
+            high_bounds[i + id_start] = value * 50 if value > 0 else value / 50
+            re_fit = True
+
+        if diff_to_low_i < threshold:
+            value = low_bounds[i + id_start]
+            low_bounds[i + id_start] = value * 50 if value < 0 else value / 50
+            re_fit = True
+
+    return re_fit, p0, low_bounds, high_bounds
+
 def evaluate_fitting_and_refit(
         global_fit_params,
         cov,
@@ -1819,7 +2617,8 @@ def evaluate_fitting_and_refit(
         fit_fx,
         n = 3,
         threshold=0.05,
-        fit_m_value=True,):
+        fit_m_value=True,
+        three_state_model=False,):
 
     """
     Evaluate if the fitted parameters are too close to the fitting boundaries.
@@ -1859,6 +2658,8 @@ def evaluate_fitting_and_refit(
         Threshold to compare if the fitted parameters are too close to the boundaries
     fit_m_value : bool, optional
         Whether m0 (m-value) is fitted (not in oligomeric models)
+    three_state_model : bool, optional
+        If a three state model is used different parameters are fitted
 
     Returns
     -------
@@ -1877,20 +2678,32 @@ def evaluate_fitting_and_refit(
     """
 
     for _ in range(n):
+        if three_state_model:
+            re_fit, p0_new, low_bounds_new, high_bounds_new = evaluate_need_to_refit_three_state(
+                global_fit_params,
+                high_bounds,
+                low_bounds,
+                p0,
+                check_dh=not limited_dh,
+                check_tm=not limited_tm,
+                given_cp=fixed_cp,
+                threshold=threshold,
+            )
 
-        re_fit, p0_new, low_bounds_new, high_bounds_new = evaluate_need_to_refit(
-            global_fit_params,
-            high_bounds,
-            low_bounds,
-            p0,
-            fit_m1=fit_m_dep,
-            check_cp=not limited_cp,
-            check_dh=not limited_dh,
-            check_tm=not limited_tm,
-            fixed_cp=fixed_cp,
-            threshold=threshold,
-            fit_m0=fit_m_value,
-        )
+        else:
+            re_fit, p0_new, low_bounds_new, high_bounds_new = evaluate_need_to_refit(
+                global_fit_params,
+                high_bounds,
+                low_bounds,
+                p0,
+                fit_m1=fit_m_dep,
+                check_cp=not limited_cp,
+                check_dh=not limited_dh,
+                check_tm=not limited_tm,
+                fixed_cp=fixed_cp,
+                threshold=threshold,
+                fit_m0=fit_m_value,
+            )
 
         if re_fit:
 

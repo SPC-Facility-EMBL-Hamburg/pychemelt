@@ -382,6 +382,12 @@ def solve_one_root_depressed_cubic(p,q):
         Solution of the formula
     """
 
-    delta = np.sqrt((q**2/4) + (p**3/27))
+    # Use hyperbolic solution for large p (all-real case when p > 0)
+    # Our cubic always has one real root because discriminant of depressed cubic is delta
 
-    return np.cbrt(-q/2+delta) + np.cbrt(-q/2-delta)
+    arg = -3 * q / (2 * p * np.sqrt(p / 3))
+    phi = 1 / 3 * np.asinh(arg)
+    res = 2 * np.sqrt(p / 3) * np.sinh(phi)
+
+
+    return res
