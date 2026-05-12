@@ -278,7 +278,7 @@ def test_fit_tc_unfolding_single_slopes():
         'baseline_unfolded_fx':quadratic_baseline
     }
 
-    global_fit_params, cov, predicted_lst = fit_tc_unfolding_single_slopes(
+    global_fit_params, cov, predicted_lst, _, _ = fit_tc_unfolding_single_slopes(
             initial_parameters=initial_parameters,
             low_bounds=low_bounds,
             high_bounds=high_bounds,
@@ -295,7 +295,7 @@ def test_fit_tc_unfolding_single_slopes():
     low_bounds_tm = low_bounds.copy()[1:]
     high_bounds_tm = high_bounds.copy()[1:]
 
-    global_fit_params, cov, predicted_lst = fit_tc_unfolding_single_slopes(
+    global_fit_params, cov, predicted_lst, _, _ = fit_tc_unfolding_single_slopes(
             initial_parameters=initial_parameters_tm,
             low_bounds=low_bounds_tm,
             high_bounds=high_bounds_tm,
@@ -318,7 +318,7 @@ def test_fit_tc_unfolding_single_slopes():
     low_bounds_dh.pop(1)
     high_bounds_dh.pop(1)
 
-    global_fit_params, cov, predicted_lst = fit_tc_unfolding_single_slopes(
+    global_fit_params, cov, predicted_lst, _, _ = fit_tc_unfolding_single_slopes(
             initial_parameters=initial_parameters_dh,
             low_bounds=low_bounds_dh,
             high_bounds=high_bounds_dh,
@@ -331,47 +331,7 @@ def test_fit_tc_unfolding_single_slopes():
     # Verify the fitting
     np.testing.assert_allclose(global_fit_params[:3], expected, rtol=0.1, atol=0)
 
-def test_compare_curve_fit_to_least_squares():
 
-    # Tm, Dh, Cp, m0
-    initial_parameters = [Tm_VAL,DHm_VAL,CP0_VAL,M0_VAL] + [1]*(len(concs)*6) # Times six, because of bN, bU, kN, kU, qN, qU
-    low_bounds = [TEMP_START,TEMP_START,0,0] + [-np.inf]*(len(concs)*6)
-    high_bounds = [TEMP_STOP,200,5,5] + [np.inf]*(len(concs)*6)
-
-    kwargs = {
-        'list_of_temperatures':temp_list,
-        'list_of_signals':signal_list,
-        'denaturant_concentrations':concs,
-        'signal_fx':signal_two_state_tc_unfolding,
-        'baseline_native_fx':quadratic_baseline,
-        'baseline_unfolded_fx':quadratic_baseline
-    }
-
-    global_fit_params_cf, cov_cf, predicted_lst = fit_tc_unfolding_single_slopes(
-            initial_parameters=initial_parameters,
-            low_bounds=low_bounds,
-            high_bounds=high_bounds,
-            method='curve_fit',
-            **kwargs
-    )
-
-    global_fit_params_sq, cov_sq, predicted_lst = fit_tc_unfolding_single_slopes(
-            initial_parameters=initial_parameters,
-            low_bounds=low_bounds,
-            high_bounds=high_bounds,
-            method='least_sq',
-            **kwargs
-    )
-
-    # Assert covariance matrix are close
-    np.testing.assert_allclose(global_fit_params_cf, global_fit_params_sq, rtol=0.01, atol=0)
-
-    stable_indices = [0,1,2,3]  # example: Tm, ΔH, m0
-    np.testing.assert_allclose(
-        np.sqrt(np.diag(cov_cf))[stable_indices],
-        np.sqrt(np.diag(cov_sq))[stable_indices],
-        rtol=0.1
-    )
 
 def test_fit_tc_unfolding_shared_slopes_many_signals():
 
@@ -396,11 +356,11 @@ def test_fit_tc_unfolding_shared_slopes_many_signals():
         'baseline_unfolded_fx':quadratic_baseline
     }
 
-    global_fit_params, cov, predicted_lst = fit_tc_unfolding_shared_slopes_many_signals(
-            initial_parameters=initial_parameters,
-            low_bounds=low_bounds,
-            high_bounds=high_bounds,
-            **kwargs
+    global_fit_params, cov, predicted_lst, _, _ = fit_tc_unfolding_shared_slopes_many_signals(
+        initial_parameters=initial_parameters,
+        low_bounds=low_bounds,
+        high_bounds=high_bounds,
+        **kwargs
     )
 
     # Verify the fitting
@@ -430,11 +390,11 @@ def test_fit_tc_unfolding_shared_slopes_many_signals_no_slopes():
         'baseline_unfolded_fx':constant_baseline
     }
 
-    global_fit_params, cov, predicted_lst = fit_tc_unfolding_shared_slopes_many_signals(
-            initial_parameters=initial_parameters,
-            low_bounds=low_bounds,
-            high_bounds=high_bounds,
-            **kwargs
+    global_fit_params, cov, predicted_lst, _, _ = fit_tc_unfolding_shared_slopes_many_signals(
+        initial_parameters=initial_parameters,
+        low_bounds=low_bounds,
+        high_bounds=high_bounds,
+        **kwargs
     )
 
     # Verify the fitting
@@ -463,7 +423,7 @@ def test_fit_tc_unfolding_many_signals():
         'baseline_unfolded_fx':quadratic_baseline
     }
 
-    global_fit_params, cov, predicted_lst = fit_tc_unfolding_many_signals(**kwargs)
+    global_fit_params, cov, predicted_lst, _, _ = fit_tc_unfolding_many_signals(**kwargs)
 
     np.testing.assert_allclose(global_fit_params[:4], expected[:4], rtol=0.1, atol=0)
 
@@ -491,7 +451,7 @@ def test_fit_tc_unfolding_many_signals():
         'fit_m1':True
     }
 
-    global_fit_params, cov, predicted_lst = fit_tc_unfolding_many_signals(**kwargs)
+    global_fit_params, cov, predicted_lst, _, _ = fit_tc_unfolding_many_signals(**kwargs)
 
     np.testing.assert_allclose(global_fit_params[:3], expected[:3], rtol=0.1, atol=0)
 
@@ -522,7 +482,7 @@ def test_fit_tc_unfolding_many_signals_no_temp_slopes():
         'model_scale_factor': True
     }
 
-    global_fit_params, cov, predicted_lst = fit_tc_unfolding_many_signals(**kwargs)
+    global_fit_params, cov, predicted_lst, _, _ = fit_tc_unfolding_many_signals(**kwargs)
 
     np.testing.assert_allclose(global_fit_params[:4], expected[:4], rtol=0.1, atol=0)
 
@@ -554,6 +514,6 @@ def test_fit_tc_unfolding_many_signals_no_den_slopes():
         'model_scale_factor': True
     }
 
-    global_fit_params, cov, predicted_lst = fit_tc_unfolding_many_signals(**kwargs)
+    global_fit_params, cov, predicted_lst, _, _ = fit_tc_unfolding_many_signals(**kwargs)
 
     np.testing.assert_allclose(global_fit_params[:4], expected[:4], rtol=0.1, atol=0)

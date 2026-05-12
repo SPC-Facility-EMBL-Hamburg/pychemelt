@@ -590,7 +590,7 @@ class ThermalOligomer(Sample):
             kwargs['list_of_temperatures'] = self.temp_lst_expanded_subset
             kwargs['list_of_signals'] = self.signal_lst_expanded_subset
 
-            global_fit_params, cov, predicted = fit_fx(**kwargs)
+            global_fit_params, cov, predicted, result, minimizer = fit_fx(**kwargs)
 
             p0 = global_fit_params
 
@@ -598,7 +598,7 @@ class ThermalOligomer(Sample):
         kwargs['list_of_temperatures'] = self.temp_lst_expanded
         kwargs['list_of_signals'] = self.signal_lst_expanded
 
-        global_fit_params, cov, predicted = fit_fx(**kwargs)
+        global_fit_params, cov, predicted, result, minimizer = fit_fx(**kwargs)
 
         global_fit_params, cov, predicted, p0, low_bounds, high_bounds = evaluate_fitting_and_refit(
             global_fit_params,
@@ -910,7 +910,7 @@ class ThermalOligomer(Sample):
                 kwargs['t2'] = row['t2']
 
                 try:
-                    fit_params, cov, pred = fit_oligomer_unfolding_three_states_single_slopes(**kwargs)
+                    fit_params, cov, pred, result, minimizer = fit_oligomer_unfolding_three_states_single_slopes(**kwargs)
                 except Exception as e:
                     print(f"Warning: {e}")
                     continue
@@ -948,7 +948,7 @@ class ThermalOligomer(Sample):
         kwargs['list_of_temperatures'] = self.temp_lst_expanded
         kwargs['list_of_signals'] = self.signal_lst_expanded
 
-        global_fit_params, cov, predicted = fit_fx(**kwargs)
+        global_fit_params, cov, predicted, result, minimizer = fit_fx(**kwargs)
 
         global_fit_params, cov, predicted, p0, low_bounds, high_bounds = evaluate_fitting_and_refit(
             global_fit_params,
@@ -1139,7 +1139,7 @@ class ThermalOligomer(Sample):
 
         if self.pre_fit:
             # Do a pre-fit with a reduced data set
-            global_fit_params, cov, predicted = fit_fx(**kwargs)
+            global_fit_params, cov, predicted, result, minimizer = fit_fx(**kwargs)
 
             p0 = global_fit_params
         # End of pre-fit
@@ -1148,7 +1148,7 @@ class ThermalOligomer(Sample):
         kwargs['list_of_temperatures'] = self.temp_lst_expanded
         kwargs['list_of_signals'] = self.signal_lst_expanded
 
-        global_fit_params, cov, predicted = fit_fx(**kwargs)
+        global_fit_params, cov, predicted, result, minimizer = fit_fx(**kwargs)
 
         global_fit_params, cov, predicted, p0, low_bounds, high_bounds = evaluate_fitting_and_refit(
             global_fit_params,
@@ -1346,7 +1346,7 @@ class ThermalOligomer(Sample):
 
         if self.pre_fit:
             # Do a pre-fit with a reduced data set
-            global_fit_params, cov, predicted = fit_fx(**kwargs)
+            global_fit_params, cov, predicted, result, minimizer = fit_fx(**kwargs)
 
             p0 = global_fit_params
         # End of pre-fit
@@ -1355,7 +1355,7 @@ class ThermalOligomer(Sample):
         kwargs['list_of_temperatures'] = self.temp_lst_expanded
         kwargs['list_of_signals'] = self.signal_lst_expanded
 
-        global_fit_params, cov, predicted = fit_fx(**kwargs)
+        global_fit_params, cov, predicted, result, minimizer = fit_fx(**kwargs)
 
         global_fit_params, cov, predicted, p0, low_bounds, high_bounds = evaluate_fitting_and_refit(
             global_fit_params,
@@ -1564,7 +1564,7 @@ class ThermalOligomer(Sample):
 
         if self.pre_fit:
 
-            global_fit_params, cov, predicted = fit_fx(**kwargs)
+            global_fit_params, cov, predicted, result, minimizer = fit_fx(**kwargs)
 
             # Assign the fitted parameters to the initial guess for the full dataset
             p0 = global_fit_params
@@ -1574,7 +1574,7 @@ class ThermalOligomer(Sample):
         # Use the whole dataset
         kwargs['list_of_signals'] = self.signal_lst_expanded
         kwargs['list_of_temperatures'] = self.temp_lst_expanded
-        global_fit_params, cov, predicted = fit_fx(**kwargs)
+        global_fit_params, cov, predicted, result, minimizer = fit_fx(**kwargs)
 
         # Remove scale factors that are not significant
         if model_scale_factor:
@@ -1644,7 +1644,7 @@ class ThermalOligomer(Sample):
                     kwargs['high_bounds'] = high_bounds
                     kwargs['scale_factor_exclude_ids'] = scale_factor_exclude_ids
 
-                    global_fit_params, cov, predicted = fit_fx(**kwargs)
+                    global_fit_params, cov, predicted, result, minimizer = fit_fx(**kwargs)
 
         rel_errors = relative_errors(global_fit_params, cov)
 
@@ -1857,7 +1857,7 @@ class ThermalOligomer(Sample):
 
         if self.pre_fit:
 
-            global_fit_params, cov, predicted = fit_fx(**kwargs)
+            global_fit_params, cov, predicted, result, minimizer = fit_fx(**kwargs)
 
             # Assign the fitted parameters to the initial guess for the full dataset
             p0 = global_fit_params
@@ -1868,7 +1868,7 @@ class ThermalOligomer(Sample):
         kwargs['list_of_signals'] = self.signal_lst_expanded
         kwargs['list_of_temperatures'] = self.temp_lst_expanded
 
-        global_fit_params, cov, predicted = fit_fx(**kwargs)
+        global_fit_params, cov, predicted, result, minimizer = fit_fx(**kwargs)
 
         # Remove scale factors that are not significant
         if model_scale_factor:
@@ -1941,7 +1941,7 @@ class ThermalOligomer(Sample):
                     kwargs['high_bounds'] = high_bounds
                     kwargs['scale_factor_exclude_ids'] = scale_factor_exclude_ids
 
-                    global_fit_params, cov, predicted = fit_fx(**kwargs)
+                    global_fit_params, cov, predicted, result, minimizer = fit_fx(**kwargs)
 
         rel_errors = relative_errors(global_fit_params, cov)
 

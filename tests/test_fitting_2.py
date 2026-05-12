@@ -115,7 +115,7 @@ def test_fit_tc_unfolding_single_slopes_exponential():
         'baseline_unfolded_fx':exponential_baseline
     }
 
-    global_fit_params, cov, predicted_lst = fit_tc_unfolding_single_slopes(
+    global_fit_params, cov, predicted_lst, _, _ = fit_tc_unfolding_single_slopes(
         initial_parameters=p0,
         low_bounds=low_bounds,
         high_bounds=high_bounds,
@@ -135,7 +135,7 @@ def test_fit_tc_unfolding_single_slopes_exponential():
     low_bounds_tm.pop(0)
     high_bounds_tm.pop(0)
 
-    global_fit_params, cov, predicted_lst = fit_tc_unfolding_single_slopes(
+    global_fit_params, cov, predicted_lst, _, _ = fit_tc_unfolding_single_slopes(
         initial_parameters=p0_tm,
         low_bounds=low_bounds_tm,
         high_bounds=high_bounds_tm,
@@ -158,7 +158,7 @@ def test_fit_tc_unfolding_single_slopes_exponential():
     low_bounds_2.insert(1, -0.5)
     high_bounds_2.insert(1, 0.5)
 
-    global_fit_params, cov, predicted_lst = fit_tc_unfolding_single_slopes(
+    global_fit_params, cov, predicted_lst, _, _ = fit_tc_unfolding_single_slopes(
         initial_parameters=p0_2,
         low_bounds=low_bounds_2,
         high_bounds=high_bounds_2,
@@ -196,7 +196,7 @@ def test_fit_tc_unfolding_shared_slopes_many_signals_exponential():
         'signal_ids' : [0 for _ in range(len(signal_list))]
     }
 
-    global_fit_params, cov, predicted_lst = fit_tc_unfolding_shared_slopes_many_signals(
+    global_fit_params, cov, predicted_lst, _, _ = fit_tc_unfolding_shared_slopes_many_signals(
         initial_parameters=p0,
         low_bounds=low_bounds,
         high_bounds=high_bounds,
@@ -237,7 +237,7 @@ def test_fit_tc_unfolding_many_signals_exponential():
         'baseline_unfolded_fx':exponential_baseline
     }
 
-    global_fit_params, cov, predicted_lst = fit_tc_unfolding_many_signals(
+    global_fit_params, cov, predicted_lst, _, _ = fit_tc_unfolding_many_signals(
         initial_parameters=p0,
         low_bounds=low_bounds,
         high_bounds=high_bounds,

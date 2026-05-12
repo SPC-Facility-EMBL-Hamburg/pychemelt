@@ -2,12 +2,11 @@
 This module contains helper functions to fit unfolding data
 Author: Osvaldo Burastero
 """
-
+import lmfit
 import numpy as np
 from scipy.optimize     import curve_fit
 from scipy.optimize     import least_squares
 from numpy.linalg       import pinv
-
 
 from .math import get_rss, temperature_to_kelvin, temperature_to_celsius
 
@@ -17,6 +16,7 @@ __all__ = [
     "fit_exponential_robust",
     "fit_thermal_unfolding",
     "fit_tc_unfolding_single_slopes",
+    "fit_tc_unfolding_single_slopes_lmfit",
     "fit_tc_unfolding_shared_slopes_many_signals",
     "fit_tc_unfolding_many_signals",
     "fit_oligomer_unfolding_single_slopes",
@@ -410,6 +410,7 @@ def fit_thermal_unfolding(
     return global_fit_params, cov, predicted_lst
 
 
+
 def fit_tc_unfolding_single_slopes(
     list_of_temperatures,
     list_of_signals,
@@ -425,8 +426,7 @@ def fit_tc_unfolding_single_slopes(
     cp_value=None,
     tm_value=None,
     dh_value=None,
-    method='least_sq'
-):
+    method='least_squares'):
     """
     Vectorized and optimized version of global thermal unfolding fitting.
 
@@ -482,15 +482,23 @@ def fit_tc_unfolding_single_slopes(
 
     d_all = np.repeat(denaturant_concentrations, lengths)
 
-    c_all = 0 if list_of_oligomer_conc is None else np.repeat(denaturant_concentrations, lengths)
+    if list_of_oligomer_conc is None:
+        c_all = np.zeros_like(T_all, dtype=float)
+    else:
+        c_all = np.repeat(list_of_oligomer_conc, lengths)
 
     # ------------------------------------------------------------
-    # Baseline parameter requirements (resolved ONCE)
+    # Baseline parameter requirements
     # ------------------------------------------------------------
     use_p2N, use_p3N = baseline_fx_name_to_req_params(baseline_native_fx)
     use_p2U, use_p3U = baseline_fx_name_to_req_params(baseline_unfolded_fx)
 
-    # Convert the Tm to kelvin
+    # Work on copies so the caller's arrays are not modified in place
+    initial_parameters = np.array(initial_parameters, dtype=float).copy()
+    low_bounds = np.array(low_bounds, dtype=float).copy()
+    high_bounds = np.array(high_bounds, dtype=float).copy()
+
+    # Convert Tm-related values to Kelvin
     if tm_value is None:
         initial_parameters[0] = temperature_to_kelvin(initial_parameters[0])
         low_bounds[0] = temperature_to_kelvin(low_bounds[0])
@@ -499,126 +507,172 @@ def fit_tc_unfolding_single_slopes(
         tm_value = temperature_to_kelvin(tm_value)
 
     # ------------------------------------------------------------
+    # Build lmfit Parameters in the same order as the old vector
+    # ------------------------------------------------------------
+    params = lmfit.Parameters()
+    i = 0
+
+    def add_param(name, value, pmin, pmax, vary=True):
+        params.add(name, value=float(value), min=float(pmin), max=float(pmax), vary=vary)
+
+    if tm_value is None:
+        add_param("Tm", initial_parameters[i], low_bounds[i], high_bounds[i], vary=True)
+        i += 1
+
+    if dh_value is None:
+        add_param("DHm", initial_parameters[i], low_bounds[i], high_bounds[i], vary=True)
+        i += 1
+
+    if cp_value is None:
+        add_param("Cp0", initial_parameters[i], low_bounds[i], high_bounds[i], vary=True)
+        i += 1
+
+    add_param("m0", initial_parameters[i], low_bounds[i], high_bounds[i], vary=True)
+    i += 1
+
+    if fit_m1:
+        add_param("m1", initial_parameters[i], low_bounds[i], high_bounds[i], vary=True)
+        i += 1
+
+    for j in range(n_datasets):
+        add_param(f"p1N_{j}", initial_parameters[i + j], low_bounds[i + j], high_bounds[i + j], vary=True)
+    i += n_datasets
+
+    for j in range(n_datasets):
+        add_param(f"p1U_{j}", initial_parameters[i + j], low_bounds[i + j], high_bounds[i + j], vary=True)
+    i += n_datasets
+
+    if use_p2N:
+        for j in range(n_datasets):
+            add_param(f"p2N_{j}", initial_parameters[i + j], low_bounds[i + j], high_bounds[i + j], vary=True)
+        i += n_datasets
+
+    if use_p2U:
+        for j in range(n_datasets):
+            add_param(f"p2U_{j}", initial_parameters[i + j], low_bounds[i + j], high_bounds[i + j], vary=True)
+        i += n_datasets
+
+    if use_p3N:
+        for j in range(n_datasets):
+            add_param(f"p3N_{j}", initial_parameters[i + j], low_bounds[i + j], high_bounds[i + j], vary=True)
+        i += n_datasets
+
+    if use_p3U:
+        for j in range(n_datasets):
+            add_param(f"p3U_{j}", initial_parameters[i + j], low_bounds[i + j], high_bounds[i + j], vary=True)
+        i += n_datasets
+
+    # ------------------------------------------------------------
     # Vectorized unfolding model
     # ------------------------------------------------------------
-    def unfolding(_, *params):
+    def unfolding_model(pars):
+        idx = 0
 
-        i = 0
-
-        # ---- Global thermodynamics ----
         if tm_value is None:
-            Tm = params[i]
-            i += 1
+            Tm = pars["Tm"].value
         else:
             Tm = tm_value
 
         if dh_value is None:
-            DHm = params[i]
-            i += 1
+            DHm = pars["DHm"].value
         else:
             DHm = dh_value
 
         if cp_value is None:
-            Cp0 = params[i]
-            i += 1
+            Cp0 = pars["Cp0"].value
         else:
             Cp0 = cp_value
 
-        m0 = params[i]
-        i += 1
+        m0 = pars["m0"].value
 
         if fit_m1:
-            m1 = params[i]
-            i += 1
+            m1 = pars["m1"].value
         else:
             m1 = 0.0
 
-        # ---- Dataset-specific parameters ----
-        p1N = np.repeat(params[i:i + n_datasets], lengths)
-        i += n_datasets
-
-        p1U = np.repeat(params[i:i + n_datasets], lengths)
-        i += n_datasets
+        p1N = np.array([pars[f"p1N_{j}"].value for j in range(n_datasets)])
+        p1U = np.array([pars[f"p1U_{j}"].value for j in range(n_datasets)])
 
         if use_p2N:
-            p2N = np.repeat(params[i:i + n_datasets], lengths)
-            i += n_datasets
+            p2N = np.array([pars[f"p2N_{j}"].value for j in range(n_datasets)])
         else:
             p2N = 0.0
 
         if use_p2U:
-            p2U = np.repeat(params[i:i + n_datasets], lengths)
-            i += n_datasets
+            p2U = np.array([pars[f"p2U_{j}"].value for j in range(n_datasets)])
         else:
             p2U = 0.0
 
         if use_p3N:
-            p3N = np.repeat(params[i:i + n_datasets], lengths)
-            i += n_datasets
+            p3N = np.array([pars[f"p3N_{j}"].value for j in range(n_datasets)])
         else:
             p3N = 0.0
 
         if use_p3U:
-            p3U = np.repeat(params[i:i + n_datasets], lengths)
-            i += n_datasets
+            p3U = np.array([pars[f"p3U_{j}"].value for j in range(n_datasets)])
         else:
             p3U = 0.0
 
-        # ---- Single vectorized signal evaluation ----
+        p1N_all = np.repeat(p1N, lengths)
+        p1U_all = np.repeat(p1U, lengths)
+
+        if np.isscalar(p2N):
+            p2N_all = p2N
+        else:
+            p2N_all = np.repeat(p2N, lengths)
+
+        if np.isscalar(p2U):
+            p2U_all = p2U
+        else:
+            p2U_all = np.repeat(p2U, lengths)
+
+        if np.isscalar(p3N):
+            p3N_all = p3N
+        else:
+            p3N_all = np.repeat(p3N, lengths)
+
+        if np.isscalar(p3U):
+            p3U_all = p3U
+        else:
+            p3U_all = np.repeat(p3U, lengths)
+
         return signal_fx(
             T_all, d_all,
             DHm, Tm, Cp0, m0, m1,
-            0, p1N, p2N, p3N,
-            0, p1U, p2U, p3U,
+            0, p1N_all, p2N_all, p3N_all,
+            0, p1U_all, p2U_all, p3U_all,
             baseline_native_fx,
             baseline_unfolded_fx,
             c_all
         )
 
-    if method == 'least_sq':
+    # ------------------------------------------------------------
+    # Residual function for lmfit
+    # ------------------------------------------------------------
+    def residuals(pars):
+        return unfolding_model(pars) - y_all
 
-        def residuals(params):
-            return unfolding(None, *params) - y_all
+    minimizer = lmfit.Minimizer(residuals, params)
+    result = minimizer.minimize(method=method)
 
-        res = least_squares(
-            residuals,
-            x0=initial_parameters,
-            bounds=(low_bounds, high_bounds),
-            method="trf",  # trust-region reflective (supports bounds)
-            xtol=1e-8,
-            ftol=1e-8,
-            gtol=1e-8
-        )
+    global_fit_params = list(result.params.valuesdict().values())
 
-        global_fit_params = res.x
-
-        # Jacobian at solution
-        J = res.jac
-
-        # Residual variance
-        dof = len(y_all) - len(res.x)
-        residual_variance = np.sum(res.fun ** 2) / dof
-
-        # Robust covariance matrix
-        cov = pinv(J.T @ J) * residual_variance
-
+    # ------------------------------------------------------------
+    # Covariance matrix
+    # ------------------------------------------------------------
+    if result.covar is not None:
+        cov = result.covar
     else:
-
-        # ------------------------------------------------------------
-        # Fit
-        # ------------------------------------------------------------
-        global_fit_params, cov = curve_fit(
-            unfolding,
-            xdata=1.0,            # dummy variable
-            ydata=y_all,
-            p0=initial_parameters,
-            bounds=(low_bounds, high_bounds)
-        )
+        # Fallback if lmfit could not estimate covariance
+        J = result.jac
+        dof = len(y_all) - len(result.var_names)
+        residual_variance = np.sum(result.residual ** 2) / max(dof, 1)
+        cov = pinv(J.T @ J) * residual_variance
 
     # ------------------------------------------------------------
     # Predict & split per dataset
     # ------------------------------------------------------------
-    predicted_all = unfolding(1.0, *global_fit_params)
+    predicted_all = unfolding_model(result.params)
 
     predicted_lst = []
     start = 0
@@ -626,12 +680,12 @@ def fit_tc_unfolding_single_slopes(
         predicted_lst.append(predicted_all[start:start + n])
         start += n
 
-    # Convert the Tm back to Celsius
+    # Convert Tm back to Celsius for the returned vector
     if tm_value is None:
         global_fit_params[0] = temperature_to_celsius(global_fit_params[0])
 
-    return global_fit_params, cov, predicted_lst
-
+    return global_fit_params, cov, predicted_lst, result, minimizer
+    
 def fit_oligomer_unfolding_single_slopes(
         list_of_temperatures,
         list_of_signals,
@@ -645,6 +699,7 @@ def fit_oligomer_unfolding_single_slopes(
         cp_value=None,
         tm_value=None,
         dh_value=None,
+        method='least_squares',
 ):
     """
     Vectorized and optimized version of global thermal unfolding fitting. of oligomers
@@ -680,6 +735,10 @@ def fit_oligomer_unfolding_single_slopes(
         Covariance matrix
     predicted_lst : list of numpy.ndarray
         Predicted signals per dataset
+    result : lmfit.minimizer.MinimizerResult
+        lmfit minimization result object
+    minimizer : lmfit.minimizer.Minimizer
+        lmfit minimizer object
     """
 
     # ------------------------------------------------------------
@@ -709,7 +768,55 @@ def fit_oligomer_unfolding_single_slopes(
     else:
         tm_value = temperature_to_kelvin(tm_value)
 
-    def unfolding(_, *params):
+    params_lmfit = lmfit.Parameters()
+    param_names = []
+    i = 0
+
+    def add_param(name, value, pmin, pmax):
+        params_lmfit.add(name, value=float(value), min=float(pmin), max=float(pmax), vary=True)
+        param_names.append(name)
+
+    if tm_value is None:
+        add_param("Tm", initial_parameters[i], low_bounds[i], high_bounds[i])
+        i += 1
+
+    if dh_value is None:
+        add_param("DHm", initial_parameters[i], low_bounds[i], high_bounds[i])
+        i += 1
+
+    if cp_value is None:
+        add_param("Cp0", initial_parameters[i], low_bounds[i], high_bounds[i])
+        i += 1
+
+    for j in range(n_datasets):
+        add_param(f"p1N_{j}", initial_parameters[i + j], low_bounds[i + j], high_bounds[i + j])
+    i += n_datasets
+
+    for j in range(n_datasets):
+        add_param(f"p1U_{j}", initial_parameters[i + j], low_bounds[i + j], high_bounds[i + j])
+    i += n_datasets
+
+    if use_p2N:
+        for j in range(n_datasets):
+            add_param(f"p2N_{j}", initial_parameters[i + j], low_bounds[i + j], high_bounds[i + j])
+        i += n_datasets
+
+    if use_p2U:
+        for j in range(n_datasets):
+            add_param(f"p2U_{j}", initial_parameters[i + j], low_bounds[i + j], high_bounds[i + j])
+        i += n_datasets
+
+    if use_p3N:
+        for j in range(n_datasets):
+            add_param(f"p3N_{j}", initial_parameters[i + j], low_bounds[i + j], high_bounds[i + j])
+        i += n_datasets
+
+    if use_p3U:
+        for j in range(n_datasets):
+            add_param(f"p3U_{j}", initial_parameters[i + j], low_bounds[i + j], high_bounds[i + j])
+        i += n_datasets
+
+    def model(pars):
 
         """
         Calculate the thermal unfolding profile of many curves at the same time
@@ -737,56 +844,41 @@ def fit_oligomer_unfolding_single_slopes(
                 slopes and intercept of the folded and unfolded states
 
         """
-        i = 0
-
-        # ---- Global thermodynamics ----
         if tm_value is None:
-            Tm = params[i]
-            i += 1
+            Tm = pars["Tm"].value
         else:
             Tm = tm_value
 
         if dh_value is None:
-            DHm = params[i]
-            i += 1
+            DHm = pars["DHm"].value
         else:
             DHm = dh_value
 
         if cp_value is None:
-            Cp0 = params[i]
-            i += 1
+            Cp0 = pars["Cp0"].value
         else:
             Cp0 = cp_value
 
-
-        # ---- Dataset-specific parameters ----
-        p1N = np.repeat(params[i:i + n_datasets], lengths)
-        i += n_datasets
-
-        p1U = np.repeat(params[i:i + n_datasets], lengths)
-        i += n_datasets
+        p1N = np.repeat(np.array([pars[f"p1N_{j}"].value for j in range(n_datasets)]), lengths)
+        p1U = np.repeat(np.array([pars[f"p1U_{j}"].value for j in range(n_datasets)]), lengths)
 
         if use_p2N:
-            p2N = np.repeat(params[i:i + n_datasets], lengths)
-            i += n_datasets
+            p2N = np.repeat(np.array([pars[f"p2N_{j}"].value for j in range(n_datasets)]), lengths)
         else:
             p2N = 0.0
 
         if use_p2U:
-            p2U = np.repeat(params[i:i + n_datasets], lengths)
-            i += n_datasets
+            p2U = np.repeat(np.array([pars[f"p2U_{j}"].value for j in range(n_datasets)]), lengths)
         else:
             p2U = 0.0
 
         if use_p3N:
-            p3N = np.repeat(params[i:i + n_datasets], lengths)
-            i += n_datasets
+            p3N = np.repeat(np.array([pars[f"p3N_{j}"].value for j in range(n_datasets)]), lengths)
         else:
             p3N = 0.0
 
         if use_p3U:
-            p3U = np.repeat(params[i:i + n_datasets], lengths)
-            i += n_datasets
+            p3U = np.repeat(np.array([pars[f"p3U_{j}"].value for j in range(n_datasets)]), lengths)
         else:
             p3U = 0.0
 
@@ -801,12 +893,30 @@ def fit_oligomer_unfolding_single_slopes(
             )
 
 
-    global_fit_params, cov = curve_fit(
-        unfolding, 1.0, y_all,
-        p0=initial_parameters, bounds=(low_bounds, high_bounds)
-    )
+    def residuals(pars):
+        return model(pars) - y_all
 
-    predicted_all = unfolding(1.0, *global_fit_params)
+    if method == "least_sq":
+        lmfit_method = "least_squares"
+    elif method == "curve_fit":
+        lmfit_method = "least_squares"
+    else:
+        lmfit_method = method
+
+    minimizer = lmfit.Minimizer(residuals, params_lmfit)
+    result = minimizer.minimize(method=lmfit_method)
+
+    global_fit_params = np.array([result.params[name].value for name in param_names])
+
+    if result.covar is not None:
+        cov = result.covar
+    else:
+        J = result.jac
+        dof = len(y_all) - len(global_fit_params)
+        residual_variance = np.sum(result.residual**2) / max(dof, 1)
+        cov = pinv(J.T @ J) * residual_variance
+
+    predicted_all = model(result.params)
 
     predicted_lst = []
     start = 0
@@ -818,7 +928,7 @@ def fit_oligomer_unfolding_single_slopes(
     if tm_value is None:
         global_fit_params[0] = temperature_to_celsius(global_fit_params[0])
 
-    return global_fit_params, cov, predicted_lst
+    return global_fit_params, cov, predicted_lst, result, minimizer
 
 def fit_oligomer_unfolding_three_states_single_slopes(
         list_of_temperatures,
@@ -835,6 +945,7 @@ def fit_oligomer_unfolding_three_states_single_slopes(
         dh1=None,
         dh2=None,
         CpTh_value=None,
+        method='least_squares',
 ):
     """
     Vectorized and optimized version of global thermal unfolding fitting. of oligomers
@@ -871,6 +982,8 @@ def fit_oligomer_unfolding_three_states_single_slopes(
     global_fit_params : numpy.ndarray
     cov : numpy.ndarray
     predicted_lst : list of numpy.ndarray
+    result : lmfit.minimizer.MinimizerResult
+    minimizer : lmfit.minimizer.Minimizer
     """
 
     # ------------------------------------------------------------
@@ -922,7 +1035,60 @@ def fit_oligomer_unfolding_three_states_single_slopes(
         high_bounds[3] = dh2 + 50
 
 
-    def unfolding(_, *params):
+    params_lmfit = lmfit.Parameters()
+    param_names = []
+    i = 0
+
+    def add_param(name, value, pmin, pmax):
+        params_lmfit.add(name, value=float(value), min=float(pmin), max=float(pmax), vary=True)
+        param_names.append(name)
+
+    add_param("Tm1", initial_parameters[i], low_bounds[i], high_bounds[i])
+    i += 1
+    add_param("DHm1", initial_parameters[i], low_bounds[i], high_bounds[i])
+    i += 1
+    add_param("Tm2", initial_parameters[i], low_bounds[i], high_bounds[i])
+    i += 1
+    add_param("DHm2", initial_parameters[i], low_bounds[i], high_bounds[i])
+    i += 1
+
+    if CpTh_value is not None:
+        add_param("Cp1", initial_parameters[i], low_bounds[i], high_bounds[i])
+        i += 1
+
+    for j in range(n_datasets):
+        add_param(f"p1N_{j}", initial_parameters[i + j], low_bounds[i + j], high_bounds[i + j])
+    i += n_datasets
+
+    for j in range(n_datasets):
+        add_param(f"p1U_{j}", initial_parameters[i + j], low_bounds[i + j], high_bounds[i + j])
+    i += n_datasets
+
+    for j in range(n_datasets):
+        add_param(f"bI_{j}", initial_parameters[i + j], low_bounds[i + j], high_bounds[i + j])
+    i += n_datasets
+
+    if use_p2N:
+        for j in range(n_datasets):
+            add_param(f"p2N_{j}", initial_parameters[i + j], low_bounds[i + j], high_bounds[i + j])
+        i += n_datasets
+
+    if use_p2U:
+        for j in range(n_datasets):
+            add_param(f"p2U_{j}", initial_parameters[i + j], low_bounds[i + j], high_bounds[i + j])
+        i += n_datasets
+
+    if use_p3N:
+        for j in range(n_datasets):
+            add_param(f"p3N_{j}", initial_parameters[i + j], low_bounds[i + j], high_bounds[i + j])
+        i += n_datasets
+
+    if use_p3U:
+        for j in range(n_datasets):
+            add_param(f"p3U_{j}", initial_parameters[i + j], low_bounds[i + j], high_bounds[i + j])
+        i += n_datasets
+
+    def model(pars):
 
         """
         Calculate the thermal unfolding profile of many curves at the same time
@@ -953,52 +1119,39 @@ def fit_oligomer_unfolding_three_states_single_slopes(
 
         """
 
-        # ---- Global thermodynamics ----
+        Tm1 = pars["Tm1"].value
+        DHm1 = pars["DHm1"].value
+        Tm2 = pars["Tm2"].value
+        DHm2 = pars["DHm2"].value
 
-
-        Tm1, DHm1, Tm2, DHm2 = params[:4]
-        i = 4
-
-        # Handling Cp values
         if CpTh_value is not None:
-            Cp1 = params[i]
+            Cp1 = pars["Cp1"].value
             CpTh = CpTh_value
-            i += 1
         else:
             Cp1 = 0.0
             CpTh = 0.0
 
-        # ---- Dataset-specific parameters ----
-        p1N = np.repeat(params[i:i + n_datasets], lengths)
-        i += n_datasets
-
-        p1U = np.repeat(params[i:i + n_datasets], lengths)
-        i += n_datasets
-
-        bI = np.repeat(params[i:i + n_datasets], lengths)
-        i += n_datasets
+        p1N = np.repeat(np.array([pars[f"p1N_{j}"].value for j in range(n_datasets)]), lengths)
+        p1U = np.repeat(np.array([pars[f"p1U_{j}"].value for j in range(n_datasets)]), lengths)
+        bI = np.repeat(np.array([pars[f"bI_{j}"].value for j in range(n_datasets)]), lengths)
 
         if use_p2N:
-            p2N = np.repeat(params[i:i + n_datasets], lengths)
-            i += n_datasets
+            p2N = np.repeat(np.array([pars[f"p2N_{j}"].value for j in range(n_datasets)]), lengths)
         else:
             p2N = 0.0
 
         if use_p2U:
-            p2U = np.repeat(params[i:i + n_datasets], lengths)
-            i += n_datasets
+            p2U = np.repeat(np.array([pars[f"p2U_{j}"].value for j in range(n_datasets)]), lengths)
         else:
             p2U = 0.0
 
         if use_p3N:
-            p3N = np.repeat(params[i:i + n_datasets], lengths)
-            i += n_datasets
+            p3N = np.repeat(np.array([pars[f"p3N_{j}"].value for j in range(n_datasets)]), lengths)
         else:
             p3N = 0.0
 
         if use_p3U:
-            p3U = np.repeat(params[i:i + n_datasets], lengths)
-            i += n_datasets
+            p3U = np.repeat(np.array([pars[f"p3U_{j}"].value for j in range(n_datasets)]), lengths)
         else:
             p3U = 0.0
 
@@ -1014,12 +1167,30 @@ def fit_oligomer_unfolding_three_states_single_slopes(
             )
 
 
-    global_fit_params, cov = curve_fit(
-        unfolding, 1.0, y_all,
-        p0=initial_parameters, bounds=(low_bounds, high_bounds)
-    )
+    def residuals(pars):
+        return model(pars) - y_all
 
-    predicted_all = unfolding(1.0, *global_fit_params)
+    if method == "least_sq":
+        lmfit_method = "least_squares"
+    elif method == "curve_fit":
+        lmfit_method = "least_squares"
+    else:
+        lmfit_method = method
+
+    minimizer = lmfit.Minimizer(residuals, params_lmfit)
+    result = minimizer.minimize(method=lmfit_method)
+
+    global_fit_params = np.array([result.params[name].value for name in param_names])
+
+    if result.covar is not None:
+        cov = result.covar
+    else:
+        J = result.jac
+        dof = len(y_all) - len(global_fit_params)
+        residual_variance = np.sum(result.residual**2) / max(dof, 1)
+        cov = pinv(J.T @ J) * residual_variance
+
+    predicted_all = model(result.params)
 
     predicted_lst = []
     start = 0
@@ -1032,7 +1203,7 @@ def fit_oligomer_unfolding_three_states_single_slopes(
     global_fit_params[0] = temperature_to_celsius(global_fit_params[0])
     global_fit_params[2] = temperature_to_celsius(global_fit_params[2])
 
-    return global_fit_params, cov, predicted_lst
+    return global_fit_params, cov, predicted_lst, result, minimizer
 
 
 def fit_tc_unfolding_shared_slopes_many_signals(
@@ -1050,11 +1221,12 @@ def fit_tc_unfolding_shared_slopes_many_signals(
     fit_m1=False,
     cp_value=None,
     tm_value=None,
-    dh_value=None
+    dh_value=None,
+    method='least_squares'
 ):
     """
     Vectorized fitting of thermochemical unfolding curves for multiple signal types
-    sharing thermodynamic parameters and slopes, using least_squares.
+    sharing thermodynamic parameters and slopes, using lmfit.
 
     Parameters
     ----------
@@ -1084,6 +1256,8 @@ def fit_tc_unfolding_shared_slopes_many_signals(
         Whether to fit temperature dependence of m-value
     cp_value, tm_value, dh_value : float or None, optional
         Optional fixed thermodynamic parameters
+    method : str, optional
+        Optimization method for lmfit minimizer. Defaults to 'least_squares'.
 
     Returns
     -------
@@ -1093,6 +1267,10 @@ def fit_tc_unfolding_shared_slopes_many_signals(
         Covariance matrix
     predicted_lst : list of numpy.ndarray
         Predicted signals per dataset
+    result : lmfit.minimizer.MinimizerResult
+        lmfit minimization result object
+    minimizer : lmfit.minimizer.Minimizer
+        lmfit minimizer object
     """
 
     # Flatten all signals
@@ -1117,45 +1295,103 @@ def fit_tc_unfolding_shared_slopes_many_signals(
     else:
         tm_value = temperature_to_kelvin(tm_value)
 
-    # Vectorized residuals function for least_squares
-    def residuals(params):
-        id_param = 0
+    params = lmfit.Parameters()
+    param_names = []
+    i = 0
 
-        Tm = params[id_param] if tm_value is None else tm_value
+    def add_param(name, value, pmin, pmax):
+        params.add(name, value=float(value), min=float(pmin), max=float(pmax), vary=True)
+        param_names.append(name)
+
+    if tm_value is None:
+        add_param("Tm", initial_parameters[i], low_bounds[i], high_bounds[i])
+        i += 1
+
+    if dh_value is None:
+        add_param("DHm", initial_parameters[i], low_bounds[i], high_bounds[i])
+        i += 1
+
+    if cp_value is None:
+        add_param("Cp0", initial_parameters[i], low_bounds[i], high_bounds[i])
+        i += 1
+
+    add_param("m0", initial_parameters[i], low_bounds[i], high_bounds[i])
+    i += 1
+
+    if fit_m1:
+        add_param("m1", initial_parameters[i], low_bounds[i], high_bounds[i])
+        i += 1
+
+    for j in range(n_datasets):
+        add_param(f"p1N_{j}", initial_parameters[i + j], low_bounds[i + j], high_bounds[i + j])
+    i += n_datasets
+
+    for j in range(n_datasets):
+        add_param(f"p1U_{j}", initial_parameters[i + j], low_bounds[i + j], high_bounds[i + j])
+    i += n_datasets
+
+    if baseline_native_params[0]:
+        for j in range(n_signals):
+            add_param(f"p2N_{j}", initial_parameters[i + j], low_bounds[i + j], high_bounds[i + j])
+        i += n_signals
+
+    if baseline_unfolded_params[0]:
+        for j in range(n_signals):
+            add_param(f"p2U_{j}", initial_parameters[i + j], low_bounds[i + j], high_bounds[i + j])
+        i += n_signals
+
+    if baseline_native_params[1]:
+        for j in range(n_signals):
+            add_param(f"p3N_{j}", initial_parameters[i + j], low_bounds[i + j], high_bounds[i + j])
+        i += n_signals
+
+    if baseline_unfolded_params[1]:
+        for j in range(n_signals):
+            add_param(f"p3U_{j}", initial_parameters[i + j], low_bounds[i + j], high_bounds[i + j])
+        i += n_signals
+
+    def residuals(pars):
         if tm_value is None:
-            id_param += 1
+            Tm = pars["Tm"].value
+        else:
+            Tm = tm_value
 
-        DHm = params[id_param] if dh_value is None else dh_value
         if dh_value is None:
-            id_param += 1
+            DHm = pars["DHm"].value
+        else:
+            DHm = dh_value
 
-        Cp0 = params[id_param] if cp_value is None else cp_value
         if cp_value is None:
-            id_param += 1
+            Cp0 = pars["Cp0"].value
+        else:
+            Cp0 = cp_value
 
-        m0 = params[id_param]
-        id_param += 1
+        m0 = pars["m0"].value
+        m1 = pars["m1"].value if fit_m1 else 0
 
-        m1 = params[id_param] if fit_m1 else 0
-        if fit_m1:
-            id_param += 1
-
-        intercepts_folded = params[id_param:id_param + n_datasets]
-        intercepts_unfolded = params[id_param + n_datasets:id_param + n_datasets * 2]
-        id_param += n_datasets * 2
+        intercepts_folded = np.array([pars[f"p1N_{j}"].value for j in range(n_datasets)])
+        intercepts_unfolded = np.array([pars[f"p1U_{j}"].value for j in range(n_datasets)])
 
         # Shared slopes / coefficients per signal type
-        p2_n_s = params[id_param:id_param + n_signals] if baseline_native_params[0] else np.zeros(n_signals)
-        id_param += n_signals if baseline_native_params[0] else 0
+        if baseline_native_params[0]:
+            p2_n_s = np.array([pars[f"p2N_{j}"].value for j in range(n_signals)])
+        else:
+            p2_n_s = np.zeros(n_signals)
 
-        p2_u_s = params[id_param:id_param + n_signals] if baseline_unfolded_params[0] else np.zeros(n_signals)
-        id_param += n_signals if baseline_unfolded_params[0] else 0
+        if baseline_unfolded_params[0]:
+            p2_u_s = np.array([pars[f"p2U_{j}"].value for j in range(n_signals)])
+        else:
+            p2_u_s = np.zeros(n_signals)
 
-        p3_n_s = params[id_param:id_param + n_signals] if baseline_native_params[1] else np.zeros(n_signals)
-        id_param += n_signals if baseline_native_params[1] else 0
+        if baseline_native_params[1]:
+            p3_n_s = np.array([pars[f"p3N_{j}"].value for j in range(n_signals)])
+        else:
+            p3_n_s = np.zeros(n_signals)
 
-        p3_u_s = params[id_param:id_param + n_signals] if baseline_unfolded_params[1] else np.zeros(n_signals)
-        id_param += n_signals if baseline_unfolded_params[1] else 0
+        if baseline_unfolded_params[1]:
+            p3_u_s = np.array([pars[f"p3U_{j}"].value for j in range(n_signals)])
+        else:
+            p3_u_s = np.zeros(n_signals)
 
         # Vectorized evaluation for all datasets
         predicted_all = np.zeros_like(all_signal)
@@ -1176,32 +1412,28 @@ def fit_tc_unfolding_shared_slopes_many_signals(
 
         return predicted_all - all_signal
 
-    # Run least_squares fit
-    res = least_squares(
-        residuals,
-        x0=initial_parameters,
-        bounds=(low_bounds, high_bounds),
-        method="trf",
-        max_nfev=2000
-    )
+    minimizer = lmfit.Minimizer(residuals, params)
+    result = minimizer.minimize(method=method)
 
-    global_fit_params = res.x
+    global_fit_params = np.array([result.params[name].value for name in param_names])
 
-    # Compute robust covariance using pseudo-inverse
-    J = res.jac
-    dof = len(all_signal) - len(global_fit_params)
-    residual_variance = np.sum(res.fun**2) / dof
-    cov = np.linalg.pinv(J.T @ J) * residual_variance
+    if result.covar is not None:
+        cov = result.covar
+    else:
+        J = result.jac
+        dof = len(all_signal) - len(global_fit_params)
+        residual_variance = np.sum(result.residual**2) / max(dof, 1)
+        cov = np.linalg.pinv(J.T @ J) * residual_variance
 
     # Convert predicted signal into list of arrays per dataset
-    predicted = res.fun + all_signal
+    predicted = all_signal + result.residual
     predicted_lst = [predicted[start:end] for start, end in zip(dataset_starts, dataset_ends)]
 
     # Convert the Tm back to Celsius
     if tm_value is None:
         global_fit_params[0] = temperature_to_celsius(global_fit_params[0])
 
-    return global_fit_params, cov, predicted_lst
+    return global_fit_params, cov, predicted_lst, result, minimizer
 
 def fit_oligomer_unfolding_shared_slopes_many_signals(
     list_of_temperatures,
@@ -1216,11 +1448,12 @@ def fit_oligomer_unfolding_shared_slopes_many_signals(
     baseline_unfolded_fx,
     cp_value=None,
     tm_value=None,
-    dh_value=None
+    dh_value=None,
+    method='least_squares'
 ):
     """
     Vectorized fitting of oligomer thermal unfolding curves for multiple signal types
-    sharing thermodynamic parameters and slopes, using least_squares.
+    sharing thermodynamic parameters and slopes, using lmfit.
 
     Parameters
     ----------
@@ -1255,6 +1488,10 @@ def fit_oligomer_unfolding_shared_slopes_many_signals(
         Covariance matrix
     predicted_lst : list of numpy.ndarray
         Predicted signals per dataset
+    result : lmfit.minimizer.MinimizerResult
+        lmfit minimization result object
+    minimizer : lmfit.minimizer.Minimizer
+        lmfit minimizer object
 
     """
 
@@ -1280,64 +1517,92 @@ def fit_oligomer_unfolding_shared_slopes_many_signals(
     else:
         tm_value = temperature_to_kelvin(tm_value)
 
-    # Vectorized residuals function for least_squares
-    def residuals(params):
-        """
-        Calculate the thermal unfolding profile of many curves at the same time
+    params_lmfit = lmfit.Parameters()
+    param_names = []
+    i = 0
 
-        Requires:
+    def add_param(name, value, pmin, pmax):
+        params_lmfit.add(name, value=float(value), min=float(pmin), max=float(pmax), vary=True)
+        param_names.append(name)
 
-            - The 'listOfTemperatures' containing each of them a single dataset
+    if tm_value is None:
+        add_param("Tm", initial_parameters[i], low_bounds[i], high_bounds[i])
+        i += 1
 
-        The other arguments have to be in the following order:
+    if dh_value is None:
+        add_param("DHm", initial_parameters[i], low_bounds[i], high_bounds[i])
+        i += 1
 
-            - Global melting temperature
-            - Global enthalpy of unfolding
-            - Global Cp0
-            - Shared intercept, folded
-            - Shared intercept, unfolded
-            - Single slopes or pre-exp terms, folded
-            - Single slopes or pre-exp terms, unfolded
-            - Single quadratic or exponential coefficients, folded
-            - Single quadratic or exponential coefficients, unfolded
+    if cp_value is None:
+        add_param("Cp0", initial_parameters[i], low_bounds[i], high_bounds[i])
+        i += 1
 
-        Returns:
+    for j in range(n_datasets):
+        add_param(f"p1N_{j}", initial_parameters[i + j], low_bounds[i + j], high_bounds[i + j])
+    i += n_datasets
 
-            The melting curves based on the parameters Temperature of melting, enthalpy of unfolding,
-                slopes and intercept of the folded and unfolded states
+    for j in range(n_datasets):
+        add_param(f"p1U_{j}", initial_parameters[i + j], low_bounds[i + j], high_bounds[i + j])
+    i += n_datasets
 
-        """
-        id_param = 0
+    if baseline_native_params[0]:
+        for j in range(n_signals):
+            add_param(f"p2N_{j}", initial_parameters[i + j], low_bounds[i + j], high_bounds[i + j])
+        i += n_signals
 
-        Tm = params[id_param] if tm_value is None else tm_value
+    if baseline_unfolded_params[0]:
+        for j in range(n_signals):
+            add_param(f"p2U_{j}", initial_parameters[i + j], low_bounds[i + j], high_bounds[i + j])
+        i += n_signals
+
+    if baseline_native_params[1]:
+        for j in range(n_signals):
+            add_param(f"p3N_{j}", initial_parameters[i + j], low_bounds[i + j], high_bounds[i + j])
+        i += n_signals
+
+    if baseline_unfolded_params[1]:
+        for j in range(n_signals):
+            add_param(f"p3U_{j}", initial_parameters[i + j], low_bounds[i + j], high_bounds[i + j])
+        i += n_signals
+
+    def residuals(pars):
         if tm_value is None:
-            id_param += 1
+            Tm = pars["Tm"].value
+        else:
+            Tm = tm_value
 
-        DHm = params[id_param] if dh_value is None else dh_value
         if dh_value is None:
-            id_param += 1
+            DHm = pars["DHm"].value
+        else:
+            DHm = dh_value
 
-        Cp0 = params[id_param] if cp_value is None else cp_value
         if cp_value is None:
-            id_param += 1
+            Cp0 = pars["Cp0"].value
+        else:
+            Cp0 = cp_value
 
+        intercepts_folded = np.array([pars[f"p1N_{j}"].value for j in range(n_datasets)])
+        intercepts_unfolded = np.array([pars[f"p1U_{j}"].value for j in range(n_datasets)])
 
-        intercepts_folded = params[id_param:id_param + n_datasets]
-        intercepts_unfolded = params[id_param + n_datasets:id_param + n_datasets * 2]
-        id_param += n_datasets * 2
+        if baseline_native_params[0]:
+            p2_n_s = np.array([pars[f"p2N_{j}"].value for j in range(n_signals)])
+        else:
+            p2_n_s = np.zeros(n_signals)
 
-        # Shared slopes / coefficients per signal type
-        p2_n_s = params[id_param:id_param + n_signals] if baseline_native_params[0] else np.zeros(n_signals)
-        id_param += n_signals if baseline_native_params[0] else 0
+        if baseline_unfolded_params[0]:
+            p2_u_s = np.array([pars[f"p2U_{j}"].value for j in range(n_signals)])
+        else:
+            p2_u_s = np.zeros(n_signals)
 
-        p2_u_s = params[id_param:id_param + n_signals] if baseline_unfolded_params[0] else np.zeros(n_signals)
-        id_param += n_signals if baseline_unfolded_params[0] else 0
+        if baseline_native_params[1]:
+            p3_n_s = np.array([pars[f"p3N_{j}"].value for j in range(n_signals)])
+        else:
+            p3_n_s = np.zeros(n_signals)
 
-        p3_n_s = params[id_param:id_param + n_signals] if baseline_native_params[1] else np.zeros(n_signals)
-        id_param += n_signals if baseline_native_params[1] else 0
-
-        p3_u_s = params[id_param:id_param + n_signals] if baseline_unfolded_params[1] else np.zeros(n_signals)
-        id_param += n_signals if baseline_unfolded_params[1] else 0
+        if baseline_unfolded_params[1]:
+            p3_u_s = np.array([pars[f"p3U_{j}"].value for j in range(n_signals)])
+        else:
+            p3_u_s = np.zeros(n_signals)
 
         # Vectorized evaluation for all datasets
         predicted_all = np.zeros_like(all_signal)
@@ -1358,32 +1623,35 @@ def fit_oligomer_unfolding_shared_slopes_many_signals(
 
         return predicted_all - all_signal
 
-    # Run least_squares fit
-    res = least_squares(
-        residuals,
-        x0=initial_parameters,
-        bounds=(low_bounds, high_bounds),
-        method="trf",
-        max_nfev=2000
-    )
+    if method == "least_sq":
+        lmfit_method = "least_squares"
+    elif method == "curve_fit":
+        lmfit_method = "least_squares"
+    else:
+        lmfit_method = method
 
-    global_fit_params = res.x
+    minimizer = lmfit.Minimizer(residuals, params_lmfit)
+    result = minimizer.minimize(method=lmfit_method)
 
-    # Compute robust covariance using pseudo-inverse
-    J = res.jac
-    dof = len(all_signal) - len(global_fit_params)
-    residual_variance = np.sum(res.fun**2) / dof
-    cov = np.linalg.pinv(J.T @ J) * residual_variance
+    global_fit_params = np.array([result.params[name].value for name in param_names])
+
+    if result.covar is not None:
+        cov = result.covar
+    else:
+        J = result.jac
+        dof = len(all_signal) - len(global_fit_params)
+        residual_variance = np.sum(result.residual**2) / max(dof, 1)
+        cov = np.linalg.pinv(J.T @ J) * residual_variance
 
     # Convert predicted signal into list of arrays per dataset
-    predicted = res.fun + all_signal
+    predicted = all_signal + result.residual
     predicted_lst = [predicted[start:end] for start, end in zip(dataset_starts, dataset_ends)]
 
     # Convert the Tm back to Celsius
     if tm_value is None:
         global_fit_params[0] = temperature_to_celsius(global_fit_params[0])
 
-    return global_fit_params, cov, predicted_lst
+    return global_fit_params, cov, predicted_lst, result, minimizer
 
 def fit_oligomer_unfolding_three_states_shared_slopes_many_signals(
     list_of_temperatures,
@@ -1401,10 +1669,11 @@ def fit_oligomer_unfolding_three_states_shared_slopes_many_signals(
     dh1=None,
     dh2=None,
     CpTh_value=None,
+    method='least_squares',
 ):
     """
     Vectorized fitting of oligomer thermal unfolding curves for multiple signal types
-    sharing thermodynamic parameters and slopes, using least_squares.
+    sharing thermodynamic parameters and slopes, using lmfit.
 
     Parameters
     ----------
@@ -1443,6 +1712,8 @@ def fit_oligomer_unfolding_three_states_shared_slopes_many_signals(
         Covariance matrix
     predicted_lst : list of numpy.ndarray
         Predicted signals per dataset
+    result : lmfit.minimizer.MinimizerResult
+    minimizer : lmfit.minimizer.Minimizer
 
     """
 
@@ -1489,8 +1760,60 @@ def fit_oligomer_unfolding_three_states_shared_slopes_many_signals(
         low_bounds[3] = dh2 - 50
         high_bounds[3] = dh2 + 50
 
-    # Vectorized residuals function for least_squares
-    def residuals(params):
+    params_lmfit = lmfit.Parameters()
+    param_names = []
+    i = 0
+
+    def add_param(name, value, pmin, pmax):
+        params_lmfit.add(name, value=float(value), min=float(pmin), max=float(pmax), vary=True)
+        param_names.append(name)
+
+    add_param("Tm1", initial_parameters[i], low_bounds[i], high_bounds[i])
+    i += 1
+    add_param("DHm1", initial_parameters[i], low_bounds[i], high_bounds[i])
+    i += 1
+    add_param("Tm2", initial_parameters[i], low_bounds[i], high_bounds[i])
+    i += 1
+    add_param("DHm2", initial_parameters[i], low_bounds[i], high_bounds[i])
+    i += 1
+
+    if CpTh_value is not None:
+        add_param("Cp1", initial_parameters[i], low_bounds[i], high_bounds[i])
+        i += 1
+
+    for j in range(n_datasets):
+        add_param(f"p1N_{j}", initial_parameters[i + j], low_bounds[i + j], high_bounds[i + j])
+    i += n_datasets
+
+    for j in range(n_datasets):
+        add_param(f"p1U_{j}", initial_parameters[i + j], low_bounds[i + j], high_bounds[i + j])
+    i += n_datasets
+
+    for j in range(n_datasets):
+        add_param(f"bI_{j}", initial_parameters[i + j], low_bounds[i + j], high_bounds[i + j])
+    i += n_datasets
+
+    if baseline_native_params[0]:
+        for j in range(n_signals):
+            add_param(f"p2N_{j}", initial_parameters[i + j], low_bounds[i + j], high_bounds[i + j])
+        i += n_signals
+
+    if baseline_unfolded_params[0]:
+        for j in range(n_signals):
+            add_param(f"p2U_{j}", initial_parameters[i + j], low_bounds[i + j], high_bounds[i + j])
+        i += n_signals
+
+    if baseline_native_params[1]:
+        for j in range(n_signals):
+            add_param(f"p3N_{j}", initial_parameters[i + j], low_bounds[i + j], high_bounds[i + j])
+        i += n_signals
+
+    if baseline_unfolded_params[1]:
+        for j in range(n_signals):
+            add_param(f"p3U_{j}", initial_parameters[i + j], low_bounds[i + j], high_bounds[i + j])
+        i += n_signals
+
+    def residuals(pars):
         """
         Calculate the thermal unfolding profile of many curves at the same time
 
@@ -1519,35 +1842,41 @@ def fit_oligomer_unfolding_three_states_shared_slopes_many_signals(
 
         """
 
-        Tm1, DHm1, Tm2, DHm2 = params[:4]
-        id_param = 4
+        Tm1 = pars["Tm1"].value
+        DHm1 = pars["DHm1"].value
+        Tm2 = pars["Tm2"].value
+        DHm2 = pars["DHm2"].value
 
-        # Handling Cp values
         if CpTh_value is not None:
-            Cp1 = params[id_param]
+            Cp1 = pars["Cp1"].value
             CpTh = CpTh_value
-            id_param += 1
         else:
             Cp1 = 0.0
             CpTh = 0.0
 
-        intercepts_folded = params[id_param:id_param + n_datasets]
-        intercepts_unfolded = params[id_param + n_datasets:id_param + n_datasets * 2]
-        intercepts_intermediates = params[id_param + 2 * n_datasets:id_param + n_datasets * 3]
-        id_param += n_datasets * 3
+        intercepts_folded = np.array([pars[f"p1N_{j}"].value for j in range(n_datasets)])
+        intercepts_unfolded = np.array([pars[f"p1U_{j}"].value for j in range(n_datasets)])
+        intercepts_intermediates = np.array([pars[f"bI_{j}"].value for j in range(n_datasets)])
 
-        # Shared slopes / coefficients per signal type
-        p2_n_s = params[id_param:id_param + n_signals] if baseline_native_params[0] else np.zeros(n_signals)
-        id_param += n_signals if baseline_native_params[0] else 0
+        if baseline_native_params[0]:
+            p2_n_s = np.array([pars[f"p2N_{j}"].value for j in range(n_signals)])
+        else:
+            p2_n_s = np.zeros(n_signals)
 
-        p2_u_s = params[id_param:id_param + n_signals] if baseline_unfolded_params[0] else np.zeros(n_signals)
-        id_param += n_signals if baseline_unfolded_params[0] else 0
+        if baseline_unfolded_params[0]:
+            p2_u_s = np.array([pars[f"p2U_{j}"].value for j in range(n_signals)])
+        else:
+            p2_u_s = np.zeros(n_signals)
 
-        p3_n_s = params[id_param:id_param + n_signals] if baseline_native_params[1] else np.zeros(n_signals)
-        id_param += n_signals if baseline_native_params[1] else 0
+        if baseline_native_params[1]:
+            p3_n_s = np.array([pars[f"p3N_{j}"].value for j in range(n_signals)])
+        else:
+            p3_n_s = np.zeros(n_signals)
 
-        p3_u_s = params[id_param:id_param + n_signals] if baseline_unfolded_params[1] else np.zeros(n_signals)
-        id_param += n_signals if baseline_unfolded_params[1] else 0
+        if baseline_unfolded_params[1]:
+            p3_u_s = np.array([pars[f"p3U_{j}"].value for j in range(n_signals)])
+        else:
+            p3_u_s = np.zeros(n_signals)
 
         # Vectorized evaluation for all datasets
         predicted_all = np.zeros_like(all_signal)
@@ -1568,32 +1897,35 @@ def fit_oligomer_unfolding_three_states_shared_slopes_many_signals(
 
         return predicted_all - all_signal
 
-    # Run least_squares fit
-    res = least_squares(
-        residuals,
-        x0=initial_parameters,
-        bounds=(low_bounds, high_bounds),
-        method="trf",
-        max_nfev=2000
-    )
+    if method == "least_sq":
+        lmfit_method = "least_squares"
+    elif method == "curve_fit":
+        lmfit_method = "least_squares"
+    else:
+        lmfit_method = method
 
-    global_fit_params = res.x
+    minimizer = lmfit.Minimizer(residuals, params_lmfit)
+    result = minimizer.minimize(method=lmfit_method)
 
-    # Compute robust covariance using pseudo-inverse
-    J = res.jac
-    dof = len(all_signal) - len(global_fit_params)
-    residual_variance = np.sum(res.fun**2) / dof
-    cov = np.linalg.pinv(J.T @ J) * residual_variance
+    global_fit_params = np.array([result.params[name].value for name in param_names])
+
+    if result.covar is not None:
+        cov = result.covar
+    else:
+        J = result.jac
+        dof = len(all_signal) - len(global_fit_params)
+        residual_variance = np.sum(result.residual**2) / max(dof, 1)
+        cov = np.linalg.pinv(J.T @ J) * residual_variance
 
     # Convert predicted signal into list of arrays per dataset
-    predicted = res.fun + all_signal
+    predicted = all_signal + result.residual
     predicted_lst = [predicted[start:end] for start, end in zip(dataset_starts, dataset_ends)]
 
     # Convert the Tm back to Celsius
     global_fit_params[0] = temperature_to_celsius(global_fit_params[0])
     global_fit_params[2] = temperature_to_celsius(global_fit_params[2])
 
-    return global_fit_params, cov, predicted_lst
+    return global_fit_params, cov, predicted_lst, result, minimizer
 
 def fit_tc_unfolding_many_signals(
         list_of_temperatures,
@@ -1610,10 +1942,11 @@ def fit_tc_unfolding_many_signals(
         model_scale_factor=False,
         scale_factor_exclude_ids=[],
         cp_value=None,
+        method='least_squares',
         fit_native_den_slope=True,
         fit_unfolded_den_slope=True):
     """
-    Fit thermochemical unfolding curves for many signals (optimized variant).
+    Fit thermochemical unfolding curves for many signals using lmfit.
 
     Parameters
     ----------
@@ -1647,6 +1980,8 @@ def fit_tc_unfolding_many_signals(
         IDs of scale factors to exclude / fix to 1
     cp_value : float or None, optional
         If provided, Cp is fixed to this value and not fitted
+    method : str, optional
+        Optimization method for lmfit minimizer. Defaults to 'least_squares'.
     fit_native_den_slope, fit_unfolded_den_slope : bool, optional
         Whether to fit denaturant dependence of baselines.
 
@@ -1658,6 +1993,10 @@ def fit_tc_unfolding_many_signals(
         Covariance matrix
     predicted_lst : list of numpy.ndarray
         Predicted signals per dataset
+    result : lmfit.minimizer.MinimizerResult
+        lmfit minimization result object
+    minimizer : lmfit.minimizer.Minimizer
+        lmfit minimizer object
     """
 
     all_signal = np.concatenate(list_of_signals, axis=0)
@@ -1679,131 +2018,136 @@ def fit_tc_unfolding_many_signals(
 
     list_of_temperatures = [temperature_to_kelvin(T) for T in list_of_temperatures]
 
-    def unfolding(dummyVariable, *args):
+    params = lmfit.Parameters()
+    param_names = []
+    i = 0
 
-        """
-        The parameters order is as follows:
+    def add_param(name, value, pmin, pmax):
+        params.add(name, value=float(value), min=float(pmin), max=float(pmax), vary=True)
+        param_names.append(name)
 
-            Tm, Dh, Cp0 and m-value
+    add_param("Tm", initial_parameters[i], low_bounds[i], high_bounds[i])
+    i += 1
+    add_param("DHm", initial_parameters[i], low_bounds[i], high_bounds[i])
+    i += 1
 
-            Intercept folded
-            Intercept unfolded
+    if cp_value is None:
+        add_param("Cp0", initial_parameters[i], low_bounds[i], high_bounds[i])
+        i += 1
 
-            Temperature slope or term pre-exponential factor folded
-            Temperature slope term or pre-exponential factor unfolded
+    add_param("m0", initial_parameters[i], low_bounds[i], high_bounds[i])
+    i += 1
 
-            Denaturant slope term folded
-            Denaturant slope term unfolded
+    if fit_m1:
+        add_param("m1", initial_parameters[i], low_bounds[i], high_bounds[i])
+        i += 1
 
-            Quadratic coefficient or exponential coefficient folded
-            Quadratic coefficient or exponential coefficient unfolded
+    for j in range(n_signals):
+        add_param(f"p2N_{j}", initial_parameters[i + j], low_bounds[i + j], high_bounds[i + j])
+    i += n_signals
 
-        """
+    for j in range(n_signals):
+        add_param(f"p2U_{j}", initial_parameters[i + j], low_bounds[i + j], high_bounds[i + j])
+    i += n_signals
 
-        if cp_value is not None:
+    if baseline_native_params[1]:
+        for j in range(n_signals):
+            add_param(f"p3N_{j}", initial_parameters[i + j], low_bounds[i + j], high_bounds[i + j])
+        i += n_signals
 
-            Cp0 = cp_value
-            Tm, DHm, m0 = args[:3]  # Enthalpy of unfolding, Temperature of melting, m0, m1
-            id_param_init = 3
+    if baseline_unfolded_params[1]:
+        for j in range(n_signals):
+            add_param(f"p3U_{j}", initial_parameters[i + j], low_bounds[i + j], high_bounds[i + j])
+        i += n_signals
 
-        else:
+    if baseline_native_params[0]:
+        for j in range(n_signals):
+            add_param(f"p1N_{j}", initial_parameters[i + j], low_bounds[i + j], high_bounds[i + j])
+        i += n_signals
 
-            Tm, DHm, Cp0, m0 = args[:4]  # Enthalpy of unfolding, Temperature of melting, Cp0, m0, m1
-            id_param_init = 4
+    if baseline_unfolded_params[0]:
+        for j in range(n_signals):
+            add_param(f"p1U_{j}", initial_parameters[i + j], low_bounds[i + j], high_bounds[i + j])
+        i += n_signals
 
-        if fit_m1:
-            m1 = args[id_param_init]
-            id_param_init += 1
-        else:
-            m1 = 0
+    if baseline_native_params[2]:
+        for j in range(n_signals):
+            add_param(f"p4N_{j}", initial_parameters[i + j], low_bounds[i + j], high_bounds[i + j])
+        i += n_signals
 
-        # Intercept parameters
-        p2_Ns = args[id_param_init:id_param_init + n_signals]
-        p2_Us = args[id_param_init + n_signals:id_param_init + 2 * n_signals]
+    if baseline_unfolded_params[2]:
+        for j in range(n_signals):
+            add_param(f"p4U_{j}", initial_parameters[i + j], low_bounds[i + j], high_bounds[i + j])
+        i += n_signals
 
-        id_param_init = id_param_init + 2 * n_signals
+    sf_fit_ids = []
+    if model_scale_factor:
+        sf_fit_ids = [k for k in range(nr_den) if k not in scale_factor_exclude_ids]
+        for k in sf_fit_ids:
+            add_param(f"sf_{k}", initial_parameters[i], low_bounds[i], high_bounds[i])
+            i += 1
 
-        # Temperature slope or pre-exponential parameters
+    def model(pars):
+        Tm = pars["Tm"].value
+        DHm = pars["DHm"].value
+        Cp0 = pars["Cp0"].value if cp_value is None else cp_value
+        m0 = pars["m0"].value
+        m1 = pars["m1"].value if fit_m1 else 0
+
+        p2_Ns = np.array([pars[f"p2N_{j}"].value for j in range(n_signals)])
+        p2_Us = np.array([pars[f"p2U_{j}"].value for j in range(n_signals)])
+
         if baseline_native_params[1]:
-
-            p3_Ns = args[id_param_init:id_param_init + n_signals]
-            id_param_init += n_signals
-
+            p3_Ns = np.array([pars[f"p3N_{j}"].value for j in range(n_signals)])
         else:
-            p3_Ns = [0] * n_signals
+            p3_Ns = np.zeros(n_signals)
 
         if baseline_unfolded_params[1]:
-
-            p3_Us = args[id_param_init:id_param_init + n_signals]
-            id_param_init += n_signals
-
+            p3_Us = np.array([pars[f"p3U_{j}"].value for j in range(n_signals)])
         else:
-            p3_Us = [0] * n_signals
+            p3_Us = np.zeros(n_signals)
 
-        # Denaturant slope parameters
         if baseline_native_params[0]:
-
-            p1_Ns = args[id_param_init:id_param_init + n_signals]
-            id_param_init += n_signals
-
+            p1_Ns = np.array([pars[f"p1N_{j}"].value for j in range(n_signals)])
         else:
-
-            p1_Ns = [0] * n_signals
+            p1_Ns = np.zeros(n_signals)
 
         if baseline_unfolded_params[0]:
-
-            p1_Us = args[id_param_init:id_param_init + n_signals]
-            id_param_init += n_signals
-
+            p1_Us = np.array([pars[f"p1U_{j}"].value for j in range(n_signals)])
         else:
+            p1_Us = np.zeros(n_signals)
 
-            p1_Us = [0] * n_signals
-
-        # Temperature-dependent quadratic or exponential coefficients
         if baseline_native_params[2]:
-
-            p4_Ns = args[id_param_init:id_param_init + n_signals]
-            id_param_init += n_signals
-
+            p4_Ns = np.array([pars[f"p4N_{j}"].value for j in range(n_signals)])
         else:
-            p4_Ns = [0] * n_signals
+            p4_Ns = np.zeros(n_signals)
 
         if baseline_unfolded_params[2]:
-
-            p4_Us = args[id_param_init:id_param_init + n_signals]
-            id_param_init += n_signals
-
+            p4_Us = np.array([pars[f"p4U_{j}"].value for j in range(n_signals)])
         else:
-            p4_Us = [0] * n_signals
+            p4_Us = np.zeros(n_signals)
 
         if model_scale_factor:
-            # One per denaturant concentration
-            factors = args[id_param_init:id_param_init + (nr_den - len(scale_factor_exclude_ids))]
-
-            for id_ex in scale_factor_exclude_ids:
-                factors = np.insert(factors, id_ex, 1)
-
-            # Repeat the list so have the same length as list_of_temperatures, equal to denaturant concentration * number of signals
-            factors = np.tile(factors, n_signals)
-
-            id_param_init += nr_den
+            sf = np.ones(nr_den)
+            for k in sf_fit_ids:
+                sf[k] = pars[f"sf_{k}"].value
+            factors = np.tile(sf, n_signals)
+        else:
+            factors = None
 
         signal = []
+        for idx, T in enumerate(list_of_temperatures):
+            p1_N = p1_Ns[signal_ids[idx]]
+            p1_U = p1_Us[signal_ids[idx]]
+            p2_N = p2_Ns[signal_ids[idx]]
+            p2_U = p2_Us[signal_ids[idx]]
+            p3_N = p3_Ns[signal_ids[idx]]
+            p3_U = p3_Us[signal_ids[idx]]
+            p4_N = p4_Ns[signal_ids[idx]]
+            p4_U = p4_Us[signal_ids[idx]]
 
-        for i, T in enumerate(list_of_temperatures):
-
-            p1_N = p1_Ns[signal_ids[i]]
-            p1_U = p1_Us[signal_ids[i]]
-            p2_N = p2_Ns[signal_ids[i]]
-            p2_U = p2_Us[signal_ids[i]]
-            p3_N = p3_Ns[signal_ids[i]]
-            p3_U = p3_Us[signal_ids[i]]
-            p4_N = p4_Ns[signal_ids[i]]
-            p4_U = p4_Us[signal_ids[i]]
-
-            d = denaturant_concentrations[i]
-
-            c = 0 if oligomer_concentrations is None else oligomer_concentrations[i]
+            d = denaturant_concentrations[idx]
+            c = 0 if oligomer_concentrations is None else oligomer_concentrations[idx]
 
             y = signal_fx(
                 T, d, DHm, Tm, Cp0, m0, m1,
@@ -1814,20 +2158,28 @@ def fit_tc_unfolding_many_signals(
                 c
             )
 
-            scale_factor = 1 if not model_scale_factor else factors[i]
-
-            y = y * scale_factor
-
-            signal.append(y)
+            scale_factor = 1 if factors is None else factors[idx]
+            signal.append(y * scale_factor)
 
         return np.concatenate(signal, axis=0)
 
-    global_fit_params, cov = curve_fit(
-        unfolding, 1, all_signal,
-        p0=initial_parameters,
-        bounds=(low_bounds, high_bounds))
+    def residuals(pars):
+        return model(pars) - all_signal
 
-    predicted = unfolding(1, *global_fit_params)
+    minimizer = lmfit.Minimizer(residuals, params)
+    result = minimizer.minimize(method=method)
+
+    global_fit_params = np.array([result.params[name].value for name in param_names])
+
+    if result.covar is not None:
+        cov = result.covar
+    else:
+        J = result.jac
+        dof = len(all_signal) - len(global_fit_params)
+        residual_variance = np.sum(result.residual**2) / max(dof, 1)
+        cov = np.linalg.pinv(J.T @ J) * residual_variance
+
+    predicted = model(result.params)
 
     # Convert predict to list of lists
     predicted_lst = []
@@ -1841,7 +2193,7 @@ def fit_tc_unfolding_many_signals(
     # Convert the Tm to Celsius
     global_fit_params[0] = temperature_to_celsius(global_fit_params[0])
 
-    return global_fit_params, cov, predicted_lst
+    return global_fit_params, cov, predicted_lst, result, minimizer
 
 def fit_oligomer_unfolding_many_signals(
         list_of_temperatures,
@@ -1855,7 +2207,8 @@ def fit_oligomer_unfolding_many_signals(
         baseline_unfolded_fx,
         model_scale_factor=False,
         scale_factor_exclude_ids=[],
-        cp_value=None):
+        cp_value=None,
+        method='least_squares'):
     """
     Fit thermal unfolding curves of oligomers for many signals (optimized variant).
 
@@ -1896,6 +2249,10 @@ def fit_oligomer_unfolding_many_signals(
         Covariance matrix
     predicted_lst : list of numpy.ndarray
         Predicted signals per dataset
+    result : lmfit.minimizer.MinimizerResult
+        lmfit minimization result object
+    minimizer : lmfit.minimizer.Minimizer
+        lmfit minimizer object
     """
 
     all_signal = np.concatenate(list_of_signals, axis=0)
@@ -1917,7 +2274,58 @@ def fit_oligomer_unfolding_many_signals(
 
     list_of_temperatures = [temperature_to_kelvin(T) for T in list_of_temperatures]
 
-    def unfolding(dummyVariable, *params):
+    params_lmfit = lmfit.Parameters()
+    param_names = []
+    i = 0
+
+    def add_param(name, value, pmin, pmax):
+        params_lmfit.add(name, value=float(value), min=float(pmin), max=float(pmax), vary=True)
+        param_names.append(name)
+
+    add_param("Tm", initial_parameters[i], low_bounds[i], high_bounds[i])
+    i += 1
+    add_param("DHm", initial_parameters[i], low_bounds[i], high_bounds[i])
+    i += 1
+
+    if cp_value is None:
+        add_param("Cp0", initial_parameters[i], low_bounds[i], high_bounds[i])
+        i += 1
+
+    for j in range(n_signals):
+        add_param(f"p1N_{j}", initial_parameters[i + j], low_bounds[i + j], high_bounds[i + j])
+    i += n_signals
+
+    for j in range(n_signals):
+        add_param(f"p1U_{j}", initial_parameters[i + j], low_bounds[i + j], high_bounds[i + j])
+    i += n_signals
+
+    if baseline_native_params[0]:
+        for j in range(n_signals):
+            add_param(f"p2N_{j}", initial_parameters[i + j], low_bounds[i + j], high_bounds[i + j])
+        i += n_signals
+
+    if baseline_unfolded_params[0]:
+        for j in range(n_signals):
+            add_param(f"p2U_{j}", initial_parameters[i + j], low_bounds[i + j], high_bounds[i + j])
+        i += n_signals
+
+    if baseline_native_params[1]:
+        for j in range(n_signals):
+            add_param(f"p3N_{j}", initial_parameters[i + j], low_bounds[i + j], high_bounds[i + j])
+        i += n_signals
+
+    if baseline_unfolded_params[1]:
+        for j in range(n_signals):
+            add_param(f"p3U_{j}", initial_parameters[i + j], low_bounds[i + j], high_bounds[i + j])
+        i += n_signals
+
+    if model_scale_factor:
+        n_fit_factors = nr_olig - len(scale_factor_exclude_ids)
+        for j in range(n_fit_factors):
+            add_param(f"sf_{j}", initial_parameters[i + j], low_bounds[i + j], high_bounds[i + j])
+        i += n_fit_factors
+
+    def model(pars):
 
         """
         The parameters order is as follows:
@@ -1935,68 +2343,42 @@ def fit_oligomer_unfolding_many_signals(
 
         """
 
-        if cp_value is not None:
-
+        Tm = pars["Tm"].value
+        DHm = pars["DHm"].value
+        if cp_value is None:
+            Cp0 = pars["Cp0"].value
+        else:
             Cp0 = cp_value
-            Tm, DHm = params[:2]  # Enthalpy of unfolding, Temperature of melting
-            id_param = 2
 
-        else:
+        p1_Ns = np.array([pars[f"p1N_{j}"].value for j in range(n_signals)])
+        p1_Us = np.array([pars[f"p1U_{j}"].value for j in range(n_signals)])
 
-            Tm, DHm, Cp0 = params[:3]  # Enthalpy of unfolding, Temperature of melting, Cp0
-            id_param = 3
-
-        # Intercept parameters
-        p1_Ns = params[id_param:id_param + n_signals]
-        p1_Us = params[id_param + n_signals:id_param + 2 * n_signals]
-
-        id_param_init = id_param + 2 * n_signals
-
-        # Temperature slope or pre-exponential parameters
         if baseline_native_params[0]:
-
-            p2_Ns = params[id_param_init:id_param_init + n_signals]
-            id_param_init += n_signals
-
+            p2_Ns = np.array([pars[f"p2N_{j}"].value for j in range(n_signals)])
         else:
-            p2_Ns = [0] * n_signals
+            p2_Ns = np.zeros(n_signals)
 
         if baseline_unfolded_params[0]:
-
-            p2_Us = params[id_param_init:id_param_init + n_signals]
-            id_param_init += n_signals
-
+            p2_Us = np.array([pars[f"p2U_{j}"].value for j in range(n_signals)])
         else:
-            p2_Us = [0] * n_signals
+            p2_Us = np.zeros(n_signals)
 
-        # Temperature-dependent quadratic or exponential coefficients
         if baseline_native_params[1]:
-
-            p3_Ns = params[id_param_init:id_param_init + n_signals]
-            id_param_init += n_signals
-
+            p3_Ns = np.array([pars[f"p3N_{j}"].value for j in range(n_signals)])
         else:
-            p3_Ns = [0] * n_signals
+            p3_Ns = np.zeros(n_signals)
 
         if baseline_unfolded_params[1]:
-
-            p3_Us = params[id_param_init:id_param_init + n_signals]
-            id_param_init += n_signals
-
+            p3_Us = np.array([pars[f"p3U_{j}"].value for j in range(n_signals)])
         else:
-            p3_Us = [0] * n_signals
+            p3_Us = np.zeros(n_signals)
 
         if model_scale_factor:
-            # One per oligomer concentration
-            factors = params[id_param_init:id_param_init + (nr_olig - len(scale_factor_exclude_ids))]
-
+            n_fit_factors = nr_olig - len(scale_factor_exclude_ids)
+            factors = np.array([pars[f"sf_{j}"].value for j in range(n_fit_factors)])
             for id_ex in scale_factor_exclude_ids:
-                factors = np.insert(factors, id_ex, 1)
-
-            # Repeat the list so have the same length as list_of_temperatures, equal to denaturant concentration * number of signals
+                factors = np.insert(factors, id_ex, 1.0)
             factors = np.tile(factors, n_signals)
-
-            id_param_init += nr_olig
 
         signal = []
 
@@ -2029,12 +2411,30 @@ def fit_oligomer_unfolding_many_signals(
 
         return np.concatenate(signal, axis=0)
 
-    global_fit_params, cov = curve_fit(
-        unfolding, 1.0, all_signal,
-        p0=initial_parameters,
-        bounds=(low_bounds, high_bounds))
+    def residuals(pars):
+        return model(pars) - all_signal
 
-    predicted = unfolding(1.0, *global_fit_params)
+    if method == "least_sq":
+        lmfit_method = "least_squares"
+    elif method == "curve_fit":
+        lmfit_method = "least_squares"
+    else:
+        lmfit_method = method
+
+    minimizer = lmfit.Minimizer(residuals, params_lmfit)
+    result = minimizer.minimize(method=lmfit_method)
+
+    global_fit_params = np.array([result.params[name].value for name in param_names])
+
+    if result.covar is not None:
+        cov = result.covar
+    else:
+        J = result.jac
+        dof = len(all_signal) - len(global_fit_params)
+        residual_variance = np.sum(result.residual**2) / max(dof, 1)
+        cov = pinv(J.T @ J) * residual_variance
+
+    predicted = model(result.params)
 
     # Convert predict to list of lists
     predicted_lst = []
@@ -2048,7 +2448,7 @@ def fit_oligomer_unfolding_many_signals(
     # Convert the Tm to Celsius
     global_fit_params[0] = temperature_to_celsius(global_fit_params[0])
 
-    return global_fit_params, cov, predicted_lst
+    return global_fit_params, cov, predicted_lst, result, minimizer
 
 def fit_oligomer_unfolding_three_states_many_signals(
         list_of_temperatures,
@@ -2062,7 +2462,8 @@ def fit_oligomer_unfolding_three_states_many_signals(
         baseline_unfolded_fx,
         CpTh_value=None,
         model_scale_factor=False,
-        scale_factor_exclude_ids=[]):
+        scale_factor_exclude_ids=[],
+        method='least_squares'):
     """
     Fit thermal unfolding curves of oligomers for many signals (optimized variant).
 
@@ -2102,6 +2503,8 @@ def fit_oligomer_unfolding_three_states_many_signals(
         Covariance matrix
     predicted_lst : list of numpy.ndarray
         Predicted signals per dataset
+    result : lmfit.minimizer.MinimizerResult
+    minimizer : lmfit.minimizer.Minimizer
     """
 
     all_signal = np.concatenate(list_of_signals, axis=0)
@@ -2127,7 +2530,66 @@ def fit_oligomer_unfolding_three_states_many_signals(
 
     list_of_temperatures = [temperature_to_kelvin(T) for T in list_of_temperatures]
 
-    def unfolding(dummyVariable, *params):
+    params_lmfit = lmfit.Parameters()
+    param_names = []
+    i = 0
+
+    def add_param(name, value, pmin, pmax):
+        params_lmfit.add(name, value=float(value), min=float(pmin), max=float(pmax), vary=True)
+        param_names.append(name)
+
+    add_param("Tm1", initial_parameters[i], low_bounds[i], high_bounds[i])
+    i += 1
+    add_param("DHm1", initial_parameters[i], low_bounds[i], high_bounds[i])
+    i += 1
+    add_param("Tm2", initial_parameters[i], low_bounds[i], high_bounds[i])
+    i += 1
+    add_param("DHm2", initial_parameters[i], low_bounds[i], high_bounds[i])
+    i += 1
+
+    if CpTh_value is not None:
+        add_param("Cp1", initial_parameters[i], low_bounds[i], high_bounds[i])
+        i += 1
+
+    for j in range(n_signals):
+        add_param(f"p1N_{j}", initial_parameters[i + j], low_bounds[i + j], high_bounds[i + j])
+    i += n_signals
+
+    for j in range(n_signals):
+        add_param(f"p1U_{j}", initial_parameters[i + j], low_bounds[i + j], high_bounds[i + j])
+    i += n_signals
+
+    for j in range(n_signals):
+        add_param(f"bI_{j}", initial_parameters[i + j], low_bounds[i + j], high_bounds[i + j])
+    i += n_signals
+
+    if baseline_native_params[0]:
+        for j in range(n_signals):
+            add_param(f"p2N_{j}", initial_parameters[i + j], low_bounds[i + j], high_bounds[i + j])
+        i += n_signals
+
+    if baseline_unfolded_params[0]:
+        for j in range(n_signals):
+            add_param(f"p2U_{j}", initial_parameters[i + j], low_bounds[i + j], high_bounds[i + j])
+        i += n_signals
+
+    if baseline_native_params[1]:
+        for j in range(n_signals):
+            add_param(f"p3N_{j}", initial_parameters[i + j], low_bounds[i + j], high_bounds[i + j])
+        i += n_signals
+
+    if baseline_unfolded_params[1]:
+        for j in range(n_signals):
+            add_param(f"p3U_{j}", initial_parameters[i + j], low_bounds[i + j], high_bounds[i + j])
+        i += n_signals
+
+    if model_scale_factor:
+        n_fit_factors = nr_olig - len(scale_factor_exclude_ids)
+        for j in range(n_fit_factors):
+            add_param(f"sf_{j}", initial_parameters[i + j], low_bounds[i + j], high_bounds[i + j])
+        i += n_fit_factors
+
+    def model(pars):
 
         """
         Calculate the thermal unfolding profile of many curves at the same time
@@ -2157,74 +2619,48 @@ def fit_oligomer_unfolding_three_states_many_signals(
                 slopes and intercept of the folded and unfolded states
 
         """
+        Tm1 = pars["Tm1"].value
+        DHm1 = pars["DHm1"].value
+        Tm2 = pars["Tm2"].value
+        DHm2 = pars["DHm2"].value
 
-
-        Tm1, DHm1, Tm2, DHm2 = params[:4]
-
-        id_param = 4
-
-        # Handling Cp prediction
         if CpTh_value is not None:
-            Cp1 = params[id_param]
+            Cp1 = pars["Cp1"].value
             CpTh = CpTh_value
-            id_param += 1
         else:
             Cp1 = 0.0
             CpTh = 0.0
 
-        # Intercept parameters
-        p1_Ns = params[id_param:id_param + n_signals]
-        p1_Us = params[id_param + n_signals:id_param + 2 * n_signals]
-        intercepts_intermediates = params[id_param + 2 * n_signals:id_param + n_signals * 3]
+        p1_Ns = np.array([pars[f"p1N_{j}"].value for j in range(n_signals)])
+        p1_Us = np.array([pars[f"p1U_{j}"].value for j in range(n_signals)])
+        intercepts_intermediates = np.array([pars[f"bI_{j}"].value for j in range(n_signals)])
 
-        id_param_init = id_param + 3 * n_signals
-
-        # Temperature slope or pre-exponential parameters
         if baseline_native_params[0]:
-
-            p2_Ns = params[id_param_init:id_param_init + n_signals]
-            id_param_init += n_signals
-
+            p2_Ns = np.array([pars[f"p2N_{j}"].value for j in range(n_signals)])
         else:
-            p2_Ns = [0] * n_signals
+            p2_Ns = np.zeros(n_signals)
 
         if baseline_unfolded_params[0]:
-
-            p2_Us = params[id_param_init:id_param_init + n_signals]
-            id_param_init += n_signals
-
+            p2_Us = np.array([pars[f"p2U_{j}"].value for j in range(n_signals)])
         else:
-            p2_Us = [0] * n_signals
+            p2_Us = np.zeros(n_signals)
 
-
-        # Temperature-dependent quadratic or exponential coefficients
         if baseline_native_params[1]:
-
-            p3_Ns = params[id_param_init:id_param_init + n_signals]
-            id_param_init += n_signals
-
+            p3_Ns = np.array([pars[f"p3N_{j}"].value for j in range(n_signals)])
         else:
-            p3_Ns = [0] * n_signals
+            p3_Ns = np.zeros(n_signals)
 
         if baseline_unfolded_params[1]:
-
-            p3_Us = params[id_param_init:id_param_init + n_signals]
-            id_param_init += n_signals
-
+            p3_Us = np.array([pars[f"p3U_{j}"].value for j in range(n_signals)])
         else:
-            p3_Us = [0] * n_signals
+            p3_Us = np.zeros(n_signals)
 
         if model_scale_factor:
-            # One per oligomer concentration
-            factors = params[id_param_init:id_param_init + (nr_olig - len(scale_factor_exclude_ids))]
-
+            n_fit_factors = nr_olig - len(scale_factor_exclude_ids)
+            factors = np.array([pars[f"sf_{j}"].value for j in range(n_fit_factors)])
             for id_ex in scale_factor_exclude_ids:
-                factors = np.insert(factors, id_ex, 1)
-
-            # Repeat the list so have the same length as list_of_temperatures, equal to denaturant concentration * number of signals
+                factors = np.insert(factors, id_ex, 1.0)
             factors = np.tile(factors, n_signals)
-
-            id_param_init += nr_olig
 
         signal = []
 
@@ -2259,13 +2695,30 @@ def fit_oligomer_unfolding_three_states_many_signals(
 
         return np.concatenate(signal, axis=0)
 
+    def residuals(pars):
+        return model(pars) - all_signal
 
-    global_fit_params, cov = curve_fit(
-        unfolding, 1.0, all_signal,
-        p0=initial_parameters,
-        bounds=(low_bounds, high_bounds))
+    if method == "least_sq":
+        lmfit_method = "least_squares"
+    elif method == "curve_fit":
+        lmfit_method = "least_squares"
+    else:
+        lmfit_method = method
 
-    predicted = unfolding(1.0, *global_fit_params)
+    minimizer = lmfit.Minimizer(residuals, params_lmfit)
+    result = minimizer.minimize(method=lmfit_method)
+
+    global_fit_params = np.array([result.params[name].value for name in param_names])
+
+    if result.covar is not None:
+        cov = result.covar
+    else:
+        J = result.jac
+        dof = len(all_signal) - len(global_fit_params)
+        residual_variance = np.sum(result.residual**2) / max(dof, 1)
+        cov = pinv(J.T @ J) * residual_variance
+
+    predicted = model(result.params)
 
     # Convert predict to list of lists
     predicted_lst = []
@@ -2280,7 +2733,7 @@ def fit_oligomer_unfolding_three_states_many_signals(
     global_fit_params[0] = temperature_to_celsius(global_fit_params[0])
     global_fit_params[2] = temperature_to_celsius(global_fit_params[2])
 
-    return global_fit_params, cov, predicted_lst
+    return global_fit_params, cov, predicted_lst, result, minimizer
 
 def evaluate_need_to_refit(
         global_fit_params,
@@ -2618,7 +3071,7 @@ def evaluate_fitting_and_refit(
         n = 3,
         threshold=0.05,
         fit_m_value=True,
-        three_state_model=False,):
+        three_state_model=False):
 
     """
     Evaluate if the fitted parameters are too close to the fitting boundaries.
@@ -2713,7 +3166,7 @@ def evaluate_fitting_and_refit(
             kwargs['low_bounds'] = low_bounds
             kwargs['high_bounds'] = high_bounds
 
-            global_fit_params, cov, predicted = fit_fx(**kwargs)
+            global_fit_params, cov, predicted, result, minimizer = fit_fx(**kwargs)
 
         else:
 

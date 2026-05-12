@@ -120,7 +120,7 @@ def test_fitting_therm_oligo_cp_impact(model_name, cp_true, cp_fit):
     }
     
 
-    global_fit_params, cov, predicted_lst = fit_oligomer_unfolding_single_slopes(
+    global_fit_params, cov, predicted_lst, _, _ = fit_oligomer_unfolding_single_slopes(
         initial_parameters=p0,
         low_bounds=low_bounds,
         high_bounds=high_bounds,
@@ -169,7 +169,7 @@ def test_fitting_therm_oligo_three_state_cp_impact(model_name, cp_th_true, cp_th
         'CpTh_value': cp_th_arg
     }
 
-    global_fit_params, cov, predicted_lst = fit_oligomer_unfolding_three_states_single_slopes(
+    global_fit_params, cov, predicted_lst, _, _ = fit_oligomer_unfolding_three_states_single_slopes(
         initial_parameters=p0,
         low_bounds=low_bounds,
         high_bounds=high_bounds,
@@ -321,7 +321,7 @@ def fitting_data_two_state(oligomer, cp_true, cp_fit, params=def_params):
         'cp_value': cp_fit,
     }
 
-    global_fit_params, cov, predicted_lst = fit_oligomer_unfolding_single_slopes(
+    global_fit_params, cov, predicted_lst, _, _ = fit_oligomer_unfolding_single_slopes(
         initial_parameters=p0,
         low_bounds=low_bounds,
         high_bounds=high_bounds,
@@ -370,7 +370,7 @@ def fitting_data_three_state(oligomer, cp1_true, cpth_true, cpth_fit, cp1_fit=1.
         'CpTh_value': cpth_fit,
     }
 
-    global_fit_params, cov, predicted_lst = fit_oligomer_unfolding_three_states_single_slopes(
+    global_fit_params, cov, predicted_lst, _, _ = fit_oligomer_unfolding_three_states_single_slopes(
         initial_parameters=p0,
         low_bounds=low_bounds,
         high_bounds=high_bounds,

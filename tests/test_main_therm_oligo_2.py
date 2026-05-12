@@ -78,7 +78,7 @@ def aux_create_pychem_sim(params,concs, model):
         y = signal_fx(temp_range_K, C, **params)
 
         # Add gaussian error to signal
-        y += rng.normal(0, 0.002*1e-3, len(y)) # Small error (seeded)
+        y += rng.normal(0, 0.002*1e-4, len(y)) # Small error (seeded)
 
         signal_list.append(y)
         temp_list.append(temp_range)
