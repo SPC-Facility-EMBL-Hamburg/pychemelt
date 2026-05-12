@@ -660,13 +660,11 @@ def fit_tc_unfolding_single_slopes(
     # ------------------------------------------------------------
     # Predict & split per dataset
     # ------------------------------------------------------------
-    predicted_all = unfolding_model(result.params)
-
-    predicted_lst = []
-    start = 0
-    for n in lengths:
-        predicted_lst.append(predicted_all[start:start + n])
-        start += n
+    # Convert predicted signal into list of arrays per dataset
+    dataset_starts = np.cumsum([0] + lengths[:-1].tolist())
+    dataset_ends = np.cumsum(lengths)
+    predicted = y_all + result.residual
+    predicted_lst = [predicted[start:end] for start, end in zip(dataset_starts, dataset_ends)]
 
     # Convert Tm back to Celsius for the returned vector
     if tm_value is None:
@@ -891,13 +889,11 @@ def fit_oligomer_unfolding_single_slopes(
 
     cov = result.covar
 
-    predicted_all = model(result.params)
-
-    predicted_lst = []
-    start = 0
-    for n in lengths:
-        predicted_lst.append(predicted_all[start:start + n])
-        start += n
+    # Convert predicted signal into list of arrays per dataset
+    dataset_starts = np.cumsum([0] + lengths[:-1].tolist())
+    dataset_ends = np.cumsum(lengths)
+    predicted = y_all + result.residual
+    predicted_lst = [predicted[start:end] for start, end in zip(dataset_starts, dataset_ends)]
 
     # Convert the Tm back to Celsius
     if tm_value is None:
@@ -1159,13 +1155,11 @@ def fit_oligomer_unfolding_three_states_single_slopes(
     cov = pinv(J.T @ J) * residual_variance
     """
 
-    predicted_all = model(result.params)
-
-    predicted_lst = []
-    start = 0
-    for n in lengths:
-        predicted_lst.append(predicted_all[start:start + n])
-        start += n
+    # Convert predicted signal into list of arrays per dataset
+    dataset_starts = np.cumsum([0] + lengths[:-1].tolist())
+    dataset_ends = np.cumsum(lengths)
+    predicted = y_all + result.residual
+    predicted_lst = [predicted[start:end] for start, end in zip(dataset_starts, dataset_ends)]
 
     # Convert the Tm back to Celsius
 
@@ -2104,16 +2098,11 @@ def fit_tc_unfolding_many_signals(
 
     cov = result.covar
 
-    predicted = model(result.params)
-
-    # Convert predict to list of lists
-    predicted_lst = []
-
-    init = 0
-    for T in list_of_temperatures:
-        n = len(T)
-        predicted_lst.append(predicted[init:init + n])
-        init += n
+    # Convert predicted signal into list of arrays per dataset
+    dataset_starts = np.cumsum([0] + [len(T) for T in list_of_temperatures][:-1])
+    dataset_ends = np.cumsum([len(T) for T in list_of_temperatures])
+    predicted = all_signal + result.residual
+    predicted_lst = [predicted[start:end] for start, end in zip(dataset_starts, dataset_ends)]
 
     # Convert the Tm to Celsius
     global_fit_params[0] = temperature_to_celsius(global_fit_params[0])
@@ -2347,16 +2336,11 @@ def fit_oligomer_unfolding_many_signals(
 
     cov = result.covar
 
-    predicted = model(result.params)
-
-    # Convert predict to list of lists
-    predicted_lst = []
-
-    init = 0
-    for T in list_of_temperatures:
-        n = len(T)
-        predicted_lst.append(predicted[init:init + n])
-        init += n
+    # Convert predicted signal into list of arrays per dataset
+    dataset_starts = np.cumsum([0] + [len(T) for T in list_of_temperatures][:-1])
+    dataset_ends = np.cumsum([len(T) for T in list_of_temperatures])
+    predicted = all_signal + result.residual
+    predicted_lst = [predicted[start:end] for start, end in zip(dataset_starts, dataset_ends)]
 
     # Convert the Tm to Celsius
     global_fit_params[0] = temperature_to_celsius(global_fit_params[0])
@@ -2619,16 +2603,11 @@ def fit_oligomer_unfolding_three_states_many_signals(
 
     cov = result.covar
 
-    predicted = model(result.params)
-
-    # Convert predict to list of lists
-    predicted_lst = []
-
-    init = 0
-    for T in list_of_temperatures:
-        n = len(T)
-        predicted_lst.append(predicted[init:init + n])
-        init += n
+    # Convert predicted signal into list of arrays per dataset
+    dataset_starts = np.cumsum([0] + [len(T) for T in list_of_temperatures][:-1])
+    dataset_ends = np.cumsum([len(T) for T in list_of_temperatures])
+    predicted = all_signal + result.residual
+    predicted_lst = [predicted[start:end] for start, end in zip(dataset_starts, dataset_ends)]
 
     # Convert the Tm to Celsius
     global_fit_params[0] = temperature_to_celsius(global_fit_params[0])
