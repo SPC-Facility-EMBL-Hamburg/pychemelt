@@ -35,7 +35,8 @@ from .utils.fitting import (
     fit_tc_unfolding_shared_slopes_many_signals,
     fit_tc_unfolding_many_signals,
     evaluate_fitting_and_refit,
-    baseline_fx_name_to_req_params
+    baseline_fx_name_to_req_params,
+    compute_asymmetric_confidence_intervals
 )
 
 class Monomer(Sample):
@@ -588,7 +589,7 @@ class Monomer(Sample):
 
             global_fit_params, cov, predicted, result, minimizer = fit_fx(**kwargs)
 
-        global_fit_params, cov, predicted, p0, low_bounds, high_bounds = evaluate_fitting_and_refit(
+        global_fit_params, cov, predicted, p0, low_bounds, high_bounds, result, minimizer = evaluate_fitting_and_refit(
             global_fit_params,
             cov,
             predicted,
@@ -602,6 +603,8 @@ class Monomer(Sample):
             self.fixed_cp,
             kwargs,
             fit_fx,
+            result=result,
+            minimizer=minimizer,
         )
 
         rel_errors = relative_errors(global_fit_params, cov)
@@ -613,6 +616,9 @@ class Monomer(Sample):
         self.rel_errors = rel_errors
 
         self.predicted_lst_multiple = re_arrange_predictions(predicted, self.nr_signals, self.nr_den)
+
+        self.result = result
+        self.minimizer = minimizer
 
         self.global_fit_done = True
 
@@ -787,7 +793,7 @@ class Monomer(Sample):
 
         global_fit_params, cov, predicted, result, minimizer = fit_fx(**kwargs)
 
-        global_fit_params, cov, predicted, p0, low_bounds, high_bounds = evaluate_fitting_and_refit(
+        global_fit_params, cov, predicted, p0, low_bounds, high_bounds, result, minimizer = evaluate_fitting_and_refit(
             global_fit_params,
             cov,
             predicted,
@@ -801,6 +807,8 @@ class Monomer(Sample):
             self.fixed_cp,
             kwargs,
             fit_fx,
+            result=result,
+            minimizer=minimizer,
         )
 
         rel_errors = relative_errors(global_fit_params, cov)
@@ -815,6 +823,9 @@ class Monomer(Sample):
             predicted, self.nr_signals, self.nr_den)
 
         self.params_names = params_names
+
+        self.result = result
+        self.minimizer = minimizer
 
         self.create_params_df()
         self.create_dg_df()
@@ -1138,6 +1149,9 @@ class Monomer(Sample):
 
         self.predicted_lst_multiple = re_arrange_predictions(
             predicted, self.nr_signals, self.nr_den)
+
+        self.result = result
+        self.minimizer = minimizer
 
         self.create_params_df()
         self.create_dg_df()

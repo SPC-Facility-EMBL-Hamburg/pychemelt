@@ -6,7 +6,7 @@ import lmfit
 import numpy as np
 from scipy.optimize     import curve_fit
 from scipy.optimize     import least_squares
-from numpy.linalg       import pinv
+from lmfit import conf_interval
 
 from .math import get_rss, temperature_to_kelvin, temperature_to_celsius
 
@@ -24,6 +24,7 @@ __all__ = [
     "fit_oligomer_unfolding_many_signals",
     "fit_oligomer_unfolding_three_states_single_slopes",
     "fit_oligomer_unfolding_three_states_shared_slopes_many_signals",
+    "compute_asymmetric_confidence_intervals"
     #"fit_oligomer_unfolding_three_states_many_signals",
 ]
 
@@ -421,7 +422,6 @@ def fit_tc_unfolding_single_slopes(
     signal_fx,
     baseline_native_fx,
     baseline_unfolded_fx,
-    list_of_oligomer_conc=None,
     fit_m1=False,
     cp_value=None,
     tm_value=None,
@@ -450,8 +450,6 @@ def fit_tc_unfolding_single_slopes(
         function to calculate the native state baseline
     baseline_unfolded_fx : callable
         function to calculate the unfolded state baseline
-    list_of_oligomer_conc : list, optional
-        Oligomer concentrations per dataset
     fit_m1 : bool, optional
         Whether to fit temperature dependence of m-value
     cp_value, tm_value, dh_value : float or None, optional
@@ -482,10 +480,7 @@ def fit_tc_unfolding_single_slopes(
 
     d_all = np.repeat(denaturant_concentrations, lengths)
 
-    if list_of_oligomer_conc is None:
-        c_all = np.zeros_like(T_all, dtype=float)
-    else:
-        c_all = np.repeat(list_of_oligomer_conc, lengths)
+    c_all = np.zeros_like(T_all, dtype=float)
 
     # ------------------------------------------------------------
     # Baseline parameter requirements
@@ -652,7 +647,7 @@ def fit_tc_unfolding_single_slopes(
     def residuals(pars):
         return unfolding_model(pars) - y_all
 
-    minimizer = lmfit.Minimizer(residuals, params)
+    minimizer = lmfit.Minimizer(residuals, params, calc_covar=True)
     result = minimizer.minimize(method=method)
 
     global_fit_params = list(result.params.valuesdict().values())
@@ -660,14 +655,7 @@ def fit_tc_unfolding_single_slopes(
     # ------------------------------------------------------------
     # Covariance matrix
     # ------------------------------------------------------------
-    if result.covar is not None:
-        cov = result.covar
-    else:
-        # Fallback if lmfit could not estimate covariance
-        J = result.jac
-        dof = len(y_all) - len(result.var_names)
-        residual_variance = np.sum(result.residual ** 2) / max(dof, 1)
-        cov = pinv(J.T @ J) * residual_variance
+    cov = result.covar
 
     # ------------------------------------------------------------
     # Predict & split per dataset
@@ -896,25 +884,12 @@ def fit_oligomer_unfolding_single_slopes(
     def residuals(pars):
         return model(pars) - y_all
 
-    if method == "least_sq":
-        lmfit_method = "least_squares"
-    elif method == "curve_fit":
-        lmfit_method = "least_squares"
-    else:
-        lmfit_method = method
-
-    minimizer = lmfit.Minimizer(residuals, params_lmfit)
-    result = minimizer.minimize(method=lmfit_method)
+    minimizer = lmfit.Minimizer(residuals, params_lmfit, calc_covar=True)
+    result = minimizer.minimize(method=method)
 
     global_fit_params = np.array([result.params[name].value for name in param_names])
 
-    if result.covar is not None:
-        cov = result.covar
-    else:
-        J = result.jac
-        dof = len(y_all) - len(global_fit_params)
-        residual_variance = np.sum(result.residual**2) / max(dof, 1)
-        cov = pinv(J.T @ J) * residual_variance
+    cov = result.covar
 
     predicted_all = model(result.params)
 
@@ -1170,25 +1145,19 @@ def fit_oligomer_unfolding_three_states_single_slopes(
     def residuals(pars):
         return model(pars) - y_all
 
-    if method == "least_sq":
-        lmfit_method = "least_squares"
-    elif method == "curve_fit":
-        lmfit_method = "least_squares"
-    else:
-        lmfit_method = method
-
-    minimizer = lmfit.Minimizer(residuals, params_lmfit)
-    result = minimizer.minimize(method=lmfit_method)
+    minimizer = lmfit.Minimizer(residuals, params_lmfit, calc_covar=True)
+    result = minimizer.minimize(method=method)
 
     global_fit_params = np.array([result.params[name].value for name in param_names])
 
-    if result.covar is not None:
-        cov = result.covar
-    else:
-        J = result.jac
-        dof = len(y_all) - len(global_fit_params)
-        residual_variance = np.sum(result.residual**2) / max(dof, 1)
-        cov = pinv(J.T @ J) * residual_variance
+    cov = result.covar
+    
+    """
+    J = result.jac
+    dof = len(y_all) - len(global_fit_params)
+    residual_variance = np.sum(result.residual**2) / max(dof, 1)
+    cov = pinv(J.T @ J) * residual_variance
+    """
 
     predicted_all = model(result.params)
 
@@ -1217,7 +1186,6 @@ def fit_tc_unfolding_shared_slopes_many_signals(
     signal_fx,
     baseline_native_fx,
     baseline_unfolded_fx,
-    list_of_oligomer_conc=None,
     fit_m1=False,
     cp_value=None,
     tm_value=None,
@@ -1250,8 +1218,6 @@ def fit_tc_unfolding_shared_slopes_many_signals(
         function to calculate the baseline for the native state
     baseline_unfolded_fx : callable
         function to calculate the baseline for the unfolded state
-    list_of_oligomer_conc : list, optional
-        Oligomer concentrations per dataset
     fit_m1 : bool, optional
         Whether to fit temperature dependence of m-value
     cp_value, tm_value, dh_value : float or None, optional
@@ -1398,7 +1364,7 @@ def fit_tc_unfolding_shared_slopes_many_signals(
         for i, T in enumerate(list_of_temperatures):
             start, end = dataset_starts[i], dataset_ends[i]
             d = denaturant_concentrations[i]
-            c = 0 if list_of_oligomer_conc is None else list_of_oligomer_conc[i]
+            c = 0
             sig_id = signal_ids[i]
 
             predicted_all[start:end] = signal_fx(
@@ -1412,18 +1378,12 @@ def fit_tc_unfolding_shared_slopes_many_signals(
 
         return predicted_all - all_signal
 
-    minimizer = lmfit.Minimizer(residuals, params)
+    minimizer = lmfit.Minimizer(residuals, params, calc_covar=True)
     result = minimizer.minimize(method=method)
 
     global_fit_params = np.array([result.params[name].value for name in param_names])
 
-    if result.covar is not None:
-        cov = result.covar
-    else:
-        J = result.jac
-        dof = len(all_signal) - len(global_fit_params)
-        residual_variance = np.sum(result.residual**2) / max(dof, 1)
-        cov = np.linalg.pinv(J.T @ J) * residual_variance
+    cov = result.covar
 
     # Convert predicted signal into list of arrays per dataset
     predicted = all_signal + result.residual
@@ -1623,25 +1583,12 @@ def fit_oligomer_unfolding_shared_slopes_many_signals(
 
         return predicted_all - all_signal
 
-    if method == "least_sq":
-        lmfit_method = "least_squares"
-    elif method == "curve_fit":
-        lmfit_method = "least_squares"
-    else:
-        lmfit_method = method
-
-    minimizer = lmfit.Minimizer(residuals, params_lmfit)
-    result = minimizer.minimize(method=lmfit_method)
+    minimizer = lmfit.Minimizer(residuals, params_lmfit, calc_covar=True)
+    result = minimizer.minimize(method=method)
 
     global_fit_params = np.array([result.params[name].value for name in param_names])
 
-    if result.covar is not None:
-        cov = result.covar
-    else:
-        J = result.jac
-        dof = len(all_signal) - len(global_fit_params)
-        residual_variance = np.sum(result.residual**2) / max(dof, 1)
-        cov = np.linalg.pinv(J.T @ J) * residual_variance
+    cov = result.covar
 
     # Convert predicted signal into list of arrays per dataset
     predicted = all_signal + result.residual
@@ -1897,25 +1844,12 @@ def fit_oligomer_unfolding_three_states_shared_slopes_many_signals(
 
         return predicted_all - all_signal
 
-    if method == "least_sq":
-        lmfit_method = "least_squares"
-    elif method == "curve_fit":
-        lmfit_method = "least_squares"
-    else:
-        lmfit_method = method
-
-    minimizer = lmfit.Minimizer(residuals, params_lmfit)
-    result = minimizer.minimize(method=lmfit_method)
+    minimizer = lmfit.Minimizer(residuals, params_lmfit, calc_covar=True)
+    result = minimizer.minimize(method=method)
 
     global_fit_params = np.array([result.params[name].value for name in param_names])
 
-    if result.covar is not None:
-        cov = result.covar
-    else:
-        J = result.jac
-        dof = len(all_signal) - len(global_fit_params)
-        residual_variance = np.sum(result.residual**2) / max(dof, 1)
-        cov = np.linalg.pinv(J.T @ J) * residual_variance
+    cov = result.covar
 
     # Convert predicted signal into list of arrays per dataset
     predicted = all_signal + result.residual
@@ -1937,7 +1871,6 @@ def fit_tc_unfolding_many_signals(
         signal_fx,
         baseline_native_fx,
         baseline_unfolded_fx,
-        oligomer_concentrations=None,
         fit_m1=False,
         model_scale_factor=False,
         scale_factor_exclude_ids=[],
@@ -1970,8 +1903,6 @@ def fit_tc_unfolding_many_signals(
         function to calculate the native state baseline
     baseline_unfolded_fx : callable
         function to calculate the unfolded state baseline
-    oligomer_concentrations : list, optional
-        Oligomer concentrations per dataset (used by oligomeric models)
     fit_m1 : bool, optional
         Whether to include and fit temperature dependence of the m-value (m1)
     model_scale_factor : bool, optional
@@ -2147,7 +2078,7 @@ def fit_tc_unfolding_many_signals(
             p4_U = p4_Us[signal_ids[idx]]
 
             d = denaturant_concentrations[idx]
-            c = 0 if oligomer_concentrations is None else oligomer_concentrations[idx]
+            c = 0
 
             y = signal_fx(
                 T, d, DHm, Tm, Cp0, m0, m1,
@@ -2166,18 +2097,12 @@ def fit_tc_unfolding_many_signals(
     def residuals(pars):
         return model(pars) - all_signal
 
-    minimizer = lmfit.Minimizer(residuals, params)
+    minimizer = lmfit.Minimizer(residuals, params, calc_covar=True)
     result = minimizer.minimize(method=method)
 
     global_fit_params = np.array([result.params[name].value for name in param_names])
 
-    if result.covar is not None:
-        cov = result.covar
-    else:
-        J = result.jac
-        dof = len(all_signal) - len(global_fit_params)
-        residual_variance = np.sum(result.residual**2) / max(dof, 1)
-        cov = np.linalg.pinv(J.T @ J) * residual_variance
+    cov = result.covar
 
     predicted = model(result.params)
 
@@ -2414,25 +2339,13 @@ def fit_oligomer_unfolding_many_signals(
     def residuals(pars):
         return model(pars) - all_signal
 
-    if method == "least_sq":
-        lmfit_method = "least_squares"
-    elif method == "curve_fit":
-        lmfit_method = "least_squares"
-    else:
-        lmfit_method = method
 
-    minimizer = lmfit.Minimizer(residuals, params_lmfit)
-    result = minimizer.minimize(method=lmfit_method)
+    minimizer = lmfit.Minimizer(residuals, params_lmfit, calc_covar=True)
+    result = minimizer.minimize(method=method)
 
     global_fit_params = np.array([result.params[name].value for name in param_names])
 
-    if result.covar is not None:
-        cov = result.covar
-    else:
-        J = result.jac
-        dof = len(all_signal) - len(global_fit_params)
-        residual_variance = np.sum(result.residual**2) / max(dof, 1)
-        cov = pinv(J.T @ J) * residual_variance
+    cov = result.covar
 
     predicted = model(result.params)
 
@@ -2698,25 +2611,13 @@ def fit_oligomer_unfolding_three_states_many_signals(
     def residuals(pars):
         return model(pars) - all_signal
 
-    if method == "least_sq":
-        lmfit_method = "least_squares"
-    elif method == "curve_fit":
-        lmfit_method = "least_squares"
-    else:
-        lmfit_method = method
 
-    minimizer = lmfit.Minimizer(residuals, params_lmfit)
-    result = minimizer.minimize(method=lmfit_method)
+    minimizer = lmfit.Minimizer(residuals, params_lmfit, calc_covar=True)
+    result = minimizer.minimize(method=method)
 
     global_fit_params = np.array([result.params[name].value for name in param_names])
 
-    if result.covar is not None:
-        cov = result.covar
-    else:
-        J = result.jac
-        dof = len(all_signal) - len(global_fit_params)
-        residual_variance = np.sum(result.residual**2) / max(dof, 1)
-        cov = pinv(J.T @ J) * residual_variance
+    cov = result.covar
 
     predicted = model(result.params)
 
@@ -3068,6 +2969,8 @@ def evaluate_fitting_and_refit(
         fixed_cp,
         kwargs,
         fit_fx,
+        result=None,
+        minimizer=None,
         n = 3,
         threshold=0.05,
         fit_m_value=True,
@@ -3105,6 +3008,10 @@ def evaluate_fitting_and_refit(
         dictionary with the arguments for the fitting function
     fit_fx: callable
         function to perform the fitting
+    result: lmfit.MinimizerResult, optional
+        lmfit result object from fitting
+    minimizer: lmfit.Minimizer, optional
+        lmfit minimizer object from fitting
     n: int, optional
         number of times to re-fit
     threshold : float, optional
@@ -3128,6 +3035,10 @@ def evaluate_fitting_and_refit(
         lower bounds of the fitting parameters
     high_bounds: array-like
         higher bounds of the fitting parameters
+    result: lmfit.MinimizerResult
+        lmfit result object from fitting
+    minimizer: lmfit.Minimizer
+        lmfit minimizer object from fitting
     """
 
     for _ in range(n):
@@ -3172,4 +3083,52 @@ def evaluate_fitting_and_refit(
 
             break
 
-    return global_fit_params, cov, predicted, p0, low_bounds, high_bounds
+    return global_fit_params, cov, predicted, p0, low_bounds, high_bounds, result, minimizer
+
+
+def compute_asymmetric_confidence_intervals(minimizer, result, param_names=['Tm'], sigmas=[2]):
+    """
+    Compute asymmetric confidence intervals for fitted parameters using lmfit.
+
+    Parameters
+    ----------
+    minimizer : lmfit.Minimizer
+        The Minimizer instance used for fitting.
+    result : lmfit.MinimizerResult
+        The result object from the fitting process.
+    param_names : list of str, optional
+        List of parameter names to compute CI for. If None, uses all parameters.
+    sigmas : float or list of float, optional
+        Sigma level(s) for confidence intervals. Default is 2 (95.4%).
+        Common values: 1 (68.3%), 2 (95.4%), 3 (99.7%)
+
+    Returns
+    -------
+    dict
+        Dictionary with parameter names as keys and lists of (sigma, lower, best, upper) tuples.
+        Example: {
+            'Tm': [(1.0, lower_val, best_val, upper_val), ...],
+            'DHm': [(1.0, lower_val, best_val, upper_val), ...]
+        }
+
+    Notes
+    -----
+    The confidence intervals are computed using the chi-square method and account for
+    parameter correlation through the Jacobian and covariance matrix.
+    """
+
+    if isinstance(sigmas, (int, float)):
+        sigmas = [sigmas]
+
+    # Compute confidence intervals
+    ci = conf_interval(minimizer, result, p_names=param_names, sigmas=sigmas)
+
+    # Reformat results into a more intuitive structure
+    ci_results = {}
+    for param in param_names:
+        if param in ci:
+            ci_results[param] = []
+            for sigma_val, value in ci[param]:
+                ci_results[param].append((sigma_val, value))
+
+    return ci_results

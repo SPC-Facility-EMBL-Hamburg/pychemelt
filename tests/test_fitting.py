@@ -12,7 +12,8 @@ from pychemelt.utils.fitting import (
     fit_thermal_unfolding,
     fit_tc_unfolding_single_slopes,
     fit_tc_unfolding_shared_slopes_many_signals,
-    fit_tc_unfolding_many_signals
+    fit_tc_unfolding_many_signals,
+    compute_asymmetric_confidence_intervals
 )
 
 from pychemelt.utils.signals import (
@@ -330,6 +331,56 @@ def test_fit_tc_unfolding_single_slopes():
 
     # Verify the fitting
     np.testing.assert_allclose(global_fit_params[:3], expected, rtol=0.1, atol=0)
+
+
+def test_fit_tc_unfolding_single_slopes_ci_contains_true_params():
+
+    # Tm, Dh, Cp, m0
+    initial_parameters = [Tm_VAL, DHm_VAL, CP0_VAL, M0_VAL] + [1] * (len(concs) * 6)
+    low_bounds = [TEMP_START, TEMP_START, 0, 0] + [-np.inf] * (len(concs) * 6)
+    high_bounds = [TEMP_STOP, 200, 5, 5] + [np.inf] * (len(concs) * 6)
+
+    kwargs = {
+        'list_of_temperatures': temp_list,
+        'list_of_signals': signal_list,
+        'denaturant_concentrations': concs,
+        'signal_fx': signal_two_state_tc_unfolding,
+        'baseline_native_fx': quadratic_baseline,
+        'baseline_unfolded_fx': quadratic_baseline
+    }
+
+    global_fit_params, cov, predicted_lst, result, minimizer = fit_tc_unfolding_single_slopes(
+        initial_parameters=initial_parameters,
+        low_bounds=low_bounds,
+        high_bounds=high_bounds,
+        **kwargs
+    )
+
+    ci = compute_asymmetric_confidence_intervals(
+        minimizer,
+        result,
+        param_names=['Tm', 'DHm', 'Cp0', 'm0'],
+        sigmas=2
+    )
+
+    true_by_name = {
+        # lmfit parameters are in Kelvin for Tm, while simulation constant is in Celsius.
+        'Tm': Tm_VAL + 273.15,
+        'DHm': DHm_VAL,
+        'Cp0': CP0_VAL,
+        'm0': M0_VAL,
+    }
+
+    for par_name, true_value in true_by_name.items():
+        assert par_name in ci
+        assert len(ci[par_name]) >= 3
+
+        lower = ci[par_name][0][1]
+        upper = ci[par_name][2][1]
+
+        assert np.isfinite(lower)
+        assert np.isfinite(upper)
+        assert lower <= true_value <= upper
 
 
 

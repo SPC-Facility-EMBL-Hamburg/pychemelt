@@ -295,7 +295,6 @@ def test_fit_thermal_unfolding_three_state_global_trimer_exponential_baseline_tr
 def test_fit_thermal_unfolding_three_state_global_global_trimer_exponential_baseline_trimeric():
     expected = [Tm_VAL_1, DHm_VAL_1, Tm_VAL_2, DHm_VAL_2]
 
-
     trimer_sim_trimeric .fit_thermal_unfolding_three_state_global_global()
 
     np.testing.assert_allclose(trimer_sim_trimeric .params_df.iloc[:4, 1], expected,

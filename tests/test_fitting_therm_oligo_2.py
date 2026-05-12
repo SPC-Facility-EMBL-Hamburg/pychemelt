@@ -253,6 +253,44 @@ def test_fit_monomer_unfolding_shared_slopes_many_signals_exponential():
 
     np.testing.assert_allclose(global_fit_params[:3], expected, rtol=0.1, atol=0)
 
+    # Now fix DH and fit the other data
+    p0_without_DH = p0.copy()
+    p0_without_DH.pop(1)
+    low_bounds_without_DH = low_bounds.copy()
+    low_bounds_without_DH.pop(1)
+    high_bounds_without_DH = high_bounds.copy()
+    high_bounds_without_DH.pop(1)
+
+    global_fit_params, cov, predicted_lst, _, _ = fit_oligomer_unfolding_shared_slopes_many_signals(
+        initial_parameters=p0_without_DH,
+        low_bounds=low_bounds_without_DH,
+        high_bounds=high_bounds_without_DH,
+        dh_value=DHm_VAL,
+        **kwargs
+    )
+    expected = [Tm_VAL, CP0_VAL]
+
+    np.testing.assert_allclose(global_fit_params[:2], expected, rtol=0.1, atol=0)
+
+    # Now test with fixed Cp
+    p0_without_Cp = p0.copy()
+    p0_without_Cp.pop(2)
+    low_bounds_without_Cp = low_bounds.copy()
+    low_bounds_without_Cp.pop(2)
+    high_bounds_without_Cp = high_bounds.copy()
+    high_bounds_without_Cp.pop(2)
+
+    global_fit_params, cov, predicted_lst, _, _ = fit_oligomer_unfolding_shared_slopes_many_signals(
+        initial_parameters=p0_without_Cp,
+        low_bounds=low_bounds_without_Cp,
+        high_bounds=high_bounds_without_Cp,
+        cp_value=CP0_VAL,
+        **kwargs
+    )
+    expected = [Tm_VAL, DHm_VAL]    
+    np.testing.assert_allclose(global_fit_params[:2], expected, rtol=0.1, atol=0)
+
+
 def test_fit_dimer_unfolding_shared_slopes_many_signals_exponential():
     signal_fx = map_two_state_model_to_signal_fx("Dimer")
 

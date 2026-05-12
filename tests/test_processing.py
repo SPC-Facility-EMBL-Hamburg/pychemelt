@@ -92,7 +92,7 @@ def test_is_float():
 
     assert is_float('not_a_number') == False
 
-def transform_to_list():
+def test_transform_to_list():
 
     assert transform_to_list("hola") == ["hola"]
 

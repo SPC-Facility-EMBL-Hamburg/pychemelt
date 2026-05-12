@@ -1456,6 +1456,19 @@ wheels = [
 ]
 
 [[package]]
+name = "numdifftools"
+version = "0.9.42"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "numpy" },
+    { name = "scipy" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/17/94/7c83677dddc78f93230f4c8a6a5faa06c92699a76eb019386a3aed8a9762/numdifftools-0.9.42.tar.gz", hash = "sha256:866675171f293c4bf2f1e1c5bf9b88a07d5396903e3b3e7fcc3879e2a01cfbc1", size = 79612, upload-time = "2025-12-11T12:06:10.54Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/60/60/c7504633e9fe53dc823db5d83dc15651c595cf35d668781832b4d2748272/numdifftools-0.9.42-py3-none-any.whl", hash = "sha256:22f926b8de24aa44f740bc26744a74555c1c80413068b1dee2edb3c3d10566f6", size = 94252, upload-time = "2025-12-11T12:06:09.322Z" },
+]
+
+[[package]]
 name = "numpy"
 version = "2.3.5"
 source = { registry = "https://pypi.org/simple" }
@@ -1809,6 +1822,7 @@ source = { editable = "." }
 dependencies = [
     { name = "lmfit" },
     { name = "matplotlib" },
+    { name = "numdifftools" },
     { name = "numpy" },
     { name = "openpyxl" },
     { name = "pandas" },
@@ -1857,6 +1871,7 @@ requires-dist = [
     { name = "lmfit", specifier = ">=1.3.4" },
     { name = "matplotlib", specifier = ">=3.10.7" },
     { name = "notebook", marker = "extra == 'dev'", specifier = ">=6.0.0" },
+    { name = "numdifftools", specifier = ">=0.9.42" },
     { name = "numpy", specifier = ">=2.3.5" },
     { name = "numpydoc", marker = "extra == 'dev'", specifier = ">=1.6.0" },
     { name = "numpydoc", marker = "extra == 'docs'", specifier = ">=1.6.0" },

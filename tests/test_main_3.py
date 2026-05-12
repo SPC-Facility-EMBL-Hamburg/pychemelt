@@ -105,13 +105,15 @@ def test_guess_Cp():
     assert 1.4 <= pychem_sim.Cp0 <= 2.2 # 0.3 units tolerance from 1.8
 
 
-def test_fit_thermal_unfolding_global():
+def test_fit_thermal_unfolding_global_err():
 
     pychem_sim.max_points = 200
 
     with pytest.raises(ValueError):
        pychem_sim.Cp0 = 0 # Force error
        pychem_sim.fit_thermal_unfolding_global()
+
+def test_fit_thermal_unfolding_global():
 
     pychem_sim.Cp0 = 1.8
     pychem_sim.fit_thermal_unfolding_global()

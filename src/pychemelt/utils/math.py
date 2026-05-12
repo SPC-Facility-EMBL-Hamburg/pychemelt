@@ -279,7 +279,11 @@ def relative_errors(params,cov):
         Relative errors of the fitted parameters (in percent)
     """
 
-    error = np.sqrt(np.diag(cov))
+    # Return np.nas if cov is None
+    if cov is None:
+        return np.full_like(params, np.nan)
+
+    error     = np.sqrt(np.diag(cov))
     rel_error = np.abs(error / params) * 100
 
     return rel_error

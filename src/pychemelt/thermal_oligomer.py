@@ -600,7 +600,7 @@ class ThermalOligomer(Sample):
 
         global_fit_params, cov, predicted, result, minimizer = fit_fx(**kwargs)
 
-        global_fit_params, cov, predicted, p0, low_bounds, high_bounds = evaluate_fitting_and_refit(
+        global_fit_params, cov, predicted, p0, low_bounds, high_bounds, result, minimizer = evaluate_fitting_and_refit(
             global_fit_params,
             cov,
             predicted,
@@ -614,6 +614,8 @@ class ThermalOligomer(Sample):
             self.fixed_cp,
             kwargs,
             fit_fx,
+            result=result,
+            minimizer=minimizer,
             fit_m_value=False,
         )
 
@@ -626,6 +628,9 @@ class ThermalOligomer(Sample):
         self.rel_errors = rel_errors
 
         self.predicted_lst_multiple = re_arrange_predictions(predicted, self.nr_signals, self.nr_olig)
+
+        self.result = result
+        self.minimizer = minimizer
 
         self.global_fit_done = True
 
@@ -904,24 +909,18 @@ class ThermalOligomer(Sample):
             kwargs['list_of_temperatures'] = self.temp_lst_expanded_subset
             kwargs['list_of_signals'] = self.signal_lst_expanded_subset
 
-
             for index, row in df.iterrows():
                 kwargs['t1'] = row['t1']
                 kwargs['t2'] = row['t2']
 
-                try:
-                    fit_params, cov, pred, result, minimizer = fit_oligomer_unfolding_three_states_single_slopes(**kwargs)
-                except Exception as e:
-                    print(f"Warning: {e}")
-                    continue
-
+                fit_params, cov, pred, result, minimizer = fit_oligomer_unfolding_three_states_single_slopes(**kwargs)
+ 
                 #using the fitted parameters as a base for fitting
                 df_tm.iloc[index, 0] = fit_params[0]
                 df_tm.iloc[index, 1] = fit_params[2]
 
                 df_dh.iloc[index, 0] = fit_params[1]
                 df_dh.iloc[index, 1] = fit_params[3]
-
 
                 rss = np.nansum((np.array(pred) - np.array(self.signal_lst_expanded_subset)) ** 2)
                 rss_all.append(rss)
@@ -950,7 +949,7 @@ class ThermalOligomer(Sample):
 
         global_fit_params, cov, predicted, result, minimizer = fit_fx(**kwargs)
 
-        global_fit_params, cov, predicted, p0, low_bounds, high_bounds = evaluate_fitting_and_refit(
+        global_fit_params, cov, predicted, p0, low_bounds, high_bounds, result, minimizer = evaluate_fitting_and_refit(
             global_fit_params,
             cov,
             predicted,
@@ -964,6 +963,8 @@ class ThermalOligomer(Sample):
             self.fixed_cp,
             kwargs,
             fit_fx,
+            result=result,
+            minimizer=minimizer,
             fit_m_value=False,
             three_state_model=True,
         )
@@ -977,6 +978,9 @@ class ThermalOligomer(Sample):
         self.rel_errors = rel_errors
 
         self.predicted_lst_multiple = re_arrange_predictions(predicted, self.nr_signals, self.nr_olig)
+
+        self.result = result
+        self.minimizer = minimizer
 
         self.global_fit_done = True
 
@@ -1150,7 +1154,7 @@ class ThermalOligomer(Sample):
 
         global_fit_params, cov, predicted, result, minimizer = fit_fx(**kwargs)
 
-        global_fit_params, cov, predicted, p0, low_bounds, high_bounds = evaluate_fitting_and_refit(
+        global_fit_params, cov, predicted, p0, low_bounds, high_bounds, result, minimizer = evaluate_fitting_and_refit(
             global_fit_params,
             cov,
             predicted,
@@ -1164,6 +1168,8 @@ class ThermalOligomer(Sample):
             self.fixed_cp,
             kwargs,
             fit_fx,
+            result=result,
+            minimizer=minimizer,
             fit_m_value=False,
         )
 
@@ -1179,6 +1185,9 @@ class ThermalOligomer(Sample):
             predicted, self.nr_signals, self.nr_olig)
 
         self.params_names = params_names
+
+        self.result = result
+        self.minimizer = minimizer
 
         self.create_params_df()
         self.create_dg_df()
@@ -1357,7 +1366,7 @@ class ThermalOligomer(Sample):
 
         global_fit_params, cov, predicted, result, minimizer = fit_fx(**kwargs)
 
-        global_fit_params, cov, predicted, p0, low_bounds, high_bounds = evaluate_fitting_and_refit(
+        global_fit_params, cov, predicted, p0, low_bounds, high_bounds, result, minimizer = evaluate_fitting_and_refit(
             global_fit_params,
             cov,
             predicted,
@@ -1371,6 +1380,8 @@ class ThermalOligomer(Sample):
             self.fixed_cp,
             kwargs,
             fit_fx,
+            result=result,
+            minimizer=minimizer,
             fit_m_value=False,
             three_state_model=True,
         )
