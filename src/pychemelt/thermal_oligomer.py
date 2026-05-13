@@ -647,7 +647,7 @@ class ThermalOligomer(Sample):
             t2_init=0,
             dh_limits=None,
             tm_limits=None,
-            CpTh=None,):
+            CpTh=None):
 
         """
         Fit the thermal unfolding of the sample using the signal and temperature data on a three state model
@@ -838,7 +838,7 @@ class ThermalOligomer(Sample):
 
         else:
 
-            cp_lower, cp_upper = 0.1, CpTh
+            cp_lower, cp_upper = 0.1, CpTh - 0.3
 
             low_bounds[4] = cp_lower
             high_bounds[4] = cp_upper
@@ -852,11 +852,13 @@ class ThermalOligomer(Sample):
 
         signal_fx = map_three_state_model_to_signal_fx(self.model)
 
+        has_nmeric_intermediate = not "monomeric_intermediate" in self.model.lower()
+
         if t1_init != 0:
-            p0[0], low_bounds[0], high_bounds[0] = t1_init, np.max([t1_init - 20, 0]), t1_init + 20
+            p0[0], low_bounds[0], high_bounds[0] = t1_init, np.max([t1_init - 15, 0]), t1_init + 20
 
         if t2_init != 0:
-            p0[2], low_bounds[2], high_bounds[2] = t2_init, np.max([t2_init - 20, 0]), t2_init + 20
+            p0[2], low_bounds[2], high_bounds[2] = t2_init, np.max([t2_init - 15, 0]), t2_init + 20
 
         kwargs = {
             'oligomer_concentrations': self.oligomer_concentrations_expanded,
@@ -874,7 +876,6 @@ class ThermalOligomer(Sample):
         step = 6
         num_rows = len(self.oligomer_concentrations)
 
-
         if num_rows > 3:
             step += 2
         if num_rows > 4:
@@ -887,7 +888,7 @@ class ThermalOligomer(Sample):
                 test_T2s = np.arange(np.max([tm2_lower, 20]) + step, tm2_upper, step)
 
             else:
-                test_T1s = np.arange(np.max([self.global_min_temp + 10, 20]), self.global_max_temp - 25, step)
+                test_T1s = np.arange(np.max([self.global_min_temp + 10, 20]), self.global_max_temp - 20*has_nmeric_intermediate, step)
                 test_T2s = np.arange(np.max([self.global_min_temp + 10, 20]) + step, self.global_max_temp + 5, step)
 
             if t1_init != 0:
@@ -933,8 +934,8 @@ class ThermalOligomer(Sample):
             dh1_init, dh2_init = df_dh['dh1'][idx], df_dh['dh2'][idx]
             p0[1], p0[3] = dh1_init, dh2_init
 
-            low_bounds[0], low_bounds[2] = t1_init - 30, t2_init - 30
-            high_bounds[0], high_bounds[2] = t1_init + 30, t2_init + 30
+            low_bounds[0], low_bounds[2] = t1_init - 15, t2_init - 15
+            high_bounds[0], high_bounds[2] = t1_init + 18, t2_init + 18
 
             kwargs['initial_parameters'] = p0
             kwargs['low_bounds'] = low_bounds
@@ -1383,7 +1384,7 @@ class ThermalOligomer(Sample):
             result=result,
             minimizer=minimizer,
             fit_m_value=False,
-            three_state_model=True,
+            three_state_model=True
         )
 
         rel_errors = relative_errors(global_fit_params, cov)

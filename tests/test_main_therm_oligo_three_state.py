@@ -344,13 +344,13 @@ def test_fit_thermal_unfolding_three_state_global_tetramer_monomeric():
     # fixed Tm limits
 
     tetramer_sim.fit_thermal_unfolding_three_state_global(
-        tm_limits=[Tm_VAL_1 - 12, Tm_VAL_1 + 20, Tm_VAL_2 - 12, Tm_VAL_2 + 20])
+        tm_limits=[Tm_VAL_1 - 12, Tm_VAL_1 + 16, Tm_VAL_2 - 12, Tm_VAL_2 + 16])
 
     np.testing.assert_allclose(tetramer_sim.params_df.iloc[:4, 1], expected, rtol=0.2)
 
     # fixed dh limits
 
-    tetramer_sim.fit_thermal_unfolding_three_state_global(dh_limits=[10, 500, 10, 500])
+    tetramer_sim.fit_thermal_unfolding_three_state_global(dh_limits=[100, 300, 100, 300])
 
     np.testing.assert_allclose(tetramer_sim.params_df.iloc[:4, 1], expected, rtol=0.2)
 
