@@ -29,14 +29,12 @@ def_params = {
     'p1_N': 0,  # dependence on denaturant concentration
     'p2_N': 50,  # intercept
     'p3_N': 0,  # slope term
-    'p4_N': 0,  # ignored
 
     # Unfolded baseline parameters
 
     'p1_U': 0,  # dependence on denaturant concentration
     'p2_U': 95,  # intercept
     'p3_U': 0,  # pre-exponential factor
-    'p4_U': 0,  # exponential coefficient
 
     'baseline_N_fx':constant_baseline,
     'baseline_U_fx':constant_baseline

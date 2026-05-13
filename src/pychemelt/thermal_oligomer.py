@@ -20,10 +20,10 @@ from .utils.math import (
     temperature_to_kelvin,
     temperature_to_celsius,
     relative_errors,
-    constant_baseline,
-    linear_baseline,
-    quadratic_baseline,
-    exponential_baseline,
+    constant_baseline_only_temp,
+    linear_baseline_only_temp,
+    quadratic_baseline_only_temp,
+    exponential_baseline_only_temp
 )
 
 from .utils.processing import (
@@ -294,7 +294,6 @@ class ThermalOligomer(Sample):
 
             self.adjusted_signal_lst_multiple = list(np.array(self.signal_lst_multiple[i])/ np.array(oligomer_concentrations))
 
-
             p1Ns, p1Us, p2Ns, p2Us, p3Ns, p3Us = estimate_signal_baseline_params(
                 self.adjusted_signal_lst_multiple,
                 self.temp_lst_multiple[i],
@@ -313,10 +312,10 @@ class ThermalOligomer(Sample):
             self.third_param_Us_per_signal.append(p3Us)
 
         baseline_fx_dic = {
-            'constant': constant_baseline,
-            'linear': linear_baseline,
-            'quadratic': quadratic_baseline,
-            'exponential': exponential_baseline
+            'constant': constant_baseline_only_temp,
+            'linear': linear_baseline_only_temp,
+            'quadratic': quadratic_baseline_only_temp,
+            'exponential': exponential_baseline_only_temp
         }
 
         self.window_range_native = window_range_native

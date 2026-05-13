@@ -12,7 +12,7 @@ from pychemelt.utils.fitting import (
     fit_oligomer_unfolding_many_signals,
 )
 
-from pychemelt.utils.math import exponential_baseline
+from pychemelt.utils.math import exponential_baseline_only_temp
 
 from pychemelt.utils.signals import (
     map_two_state_model_to_signal_fx
@@ -45,16 +45,14 @@ def_params = {
     'dHm': DHm_VAL,
     'Tm': Tm_VAL+273.15,
     'Cp': CP0_VAL,
-    'p1_N': C_N_VAL,
-    'p2_N': INTERCEPT_N,
-    'p3_N': PRE_EXP_N,
-    'p4_N': ALPHA_N_VAL,
-    'p1_U': C_U_VAL,
-    'p2_U': INTERCEPT_U,
-    'p3_U': PRE_EXP_U,
-    'p4_U': ALPHA_U_VAL,
-    'baseline_N_fx':exponential_baseline,
-    'baseline_U_fx':exponential_baseline
+    'p1_N': INTERCEPT_N,
+    'p2_N': PRE_EXP_N,
+    'p3_N': ALPHA_N_VAL,
+    'p1_U': INTERCEPT_U,
+    'p2_U': PRE_EXP_U,
+    'p3_U': ALPHA_U_VAL,
+    'baseline_N_fx':exponential_baseline_only_temp,
+    'baseline_U_fx':exponential_baseline_only_temp
 
 }
 
@@ -86,8 +84,8 @@ def test_fit_monomer_unfolding_single_slopes_exponential():
         'list_of_signals' : signal_list,
         'oligomer_concentrations' : concs,
         'signal_fx' : signal_fx,
-        'baseline_native_fx':exponential_baseline,
-        'baseline_unfolded_fx':exponential_baseline, 
+        'baseline_native_fx':exponential_baseline_only_temp ,
+        'baseline_unfolded_fx':exponential_baseline_only_temp, 
     }
 
     global_fit_params, cov, predicted_lst, _, _ = fit_oligomer_unfolding_single_slopes(
@@ -123,8 +121,8 @@ def test_fit_dimer_unfolding_single_slopes_exponential():
         'list_of_signals' : signal_list,
         'oligomer_concentrations' : concs,
         'signal_fx' : signal_fx,
-        'baseline_native_fx':exponential_baseline,
-        'baseline_unfolded_fx':exponential_baseline, 
+        'baseline_native_fx':exponential_baseline_only_temp,
+        'baseline_unfolded_fx':exponential_baseline_only_temp, 
     }
 
     global_fit_params, cov, predicted_lst, _, _ = fit_oligomer_unfolding_single_slopes(
@@ -160,8 +158,8 @@ def test_fit_trimer_unfolding_single_slopes_exponential():
         'list_of_signals' : signal_list,
         'oligomer_concentrations' : concs,
         'signal_fx' : signal_fx,
-        'baseline_native_fx':exponential_baseline,
-        'baseline_unfolded_fx':exponential_baseline, 
+        'baseline_native_fx':exponential_baseline_only_temp,
+        'baseline_unfolded_fx':exponential_baseline_only_temp, 
     }
 
     global_fit_params, cov, predicted_lst, _, _ = fit_oligomer_unfolding_single_slopes(
@@ -197,8 +195,8 @@ def test_fit_tetramer_unfolding_single_slopes_exponential():
         'list_of_signals' : signal_list,
         'oligomer_concentrations' : concs,
         'signal_fx' : signal_fx,
-        'baseline_native_fx':exponential_baseline,
-        'baseline_unfolded_fx':exponential_baseline, 
+        'baseline_native_fx':exponential_baseline_only_temp,
+        'baseline_unfolded_fx':exponential_baseline_only_temp, 
     }
 
     global_fit_params, cov, predicted_lst, _, _ = fit_oligomer_unfolding_single_slopes(
@@ -237,8 +235,8 @@ def test_fit_monomer_unfolding_shared_slopes_many_signals_exponential():
         'list_of_signals' : signal_list,
         'oligomer_concentrations' : concs,
         'signal_fx' : signal_fx,
-        'baseline_native_fx':exponential_baseline,
-        'baseline_unfolded_fx':exponential_baseline,
+        'baseline_native_fx':exponential_baseline_only_temp,
+        'baseline_unfolded_fx':exponential_baseline_only_temp,
         'signal_ids' : [0 for _ in range(len(signal_list))], 
     }
 
@@ -314,8 +312,8 @@ def test_fit_dimer_unfolding_shared_slopes_many_signals_exponential():
         'list_of_signals' : signal_list,
         'oligomer_concentrations' : concs,
         'signal_fx' : signal_fx,
-        'baseline_native_fx':exponential_baseline,
-        'baseline_unfolded_fx':exponential_baseline,
+        'baseline_native_fx':exponential_baseline_only_temp,
+        'baseline_unfolded_fx':exponential_baseline_only_temp,
         'signal_ids' : [0 for _ in range(len(signal_list))], 
     }
 
@@ -353,8 +351,8 @@ def test_fit_trimer_unfolding_shared_slopes_many_signals_exponential():
         'list_of_signals' : signal_list,
         'oligomer_concentrations' : concs,
         'signal_fx' : signal_fx,
-        'baseline_native_fx':exponential_baseline,
-        'baseline_unfolded_fx':exponential_baseline,
+        'baseline_native_fx':exponential_baseline_only_temp,
+        'baseline_unfolded_fx':exponential_baseline_only_temp,
         'signal_ids' : [0 for _ in range(len(signal_list))], 
     }
 
@@ -391,8 +389,8 @@ def test_fit_tetramer_unfolding_shared_slopes_many_signals_exponential():
         'list_of_signals' : signal_list,
         'oligomer_concentrations' : concs,
         'signal_fx' : signal_fx,
-        'baseline_native_fx':exponential_baseline,
-        'baseline_unfolded_fx':exponential_baseline,
+        'baseline_native_fx':exponential_baseline_only_temp,
+        'baseline_unfolded_fx':exponential_baseline_only_temp,
         'signal_ids' : [0 for _ in range(len(signal_list))], 
     }
 
@@ -441,8 +439,8 @@ def test_fit_monomer_unfolding_many_signals_exponential():
         'signal_ids' : [0 for _ in range(len(signal_list))],
         'model_scale_factor': False,
         'cp_value' : CP0_VAL,
-        'baseline_native_fx':exponential_baseline,
-        'baseline_unfolded_fx':exponential_baseline, 
+        'baseline_native_fx':exponential_baseline_only_temp,
+        'baseline_unfolded_fx':exponential_baseline_only_temp, 
     }
 
     global_fit_params, cov, predicted_lst, _, _ = fit_oligomer_unfolding_many_signals(
@@ -485,8 +483,8 @@ def test_fit_dimer_unfolding_many_signals_exponential():
         'signal_ids' : [0 for _ in range(len(signal_list))],
         'model_scale_factor': False,
         'cp_value' : CP0_VAL,
-        'baseline_native_fx':exponential_baseline,
-        'baseline_unfolded_fx':exponential_baseline, 
+        'baseline_native_fx':exponential_baseline_only_temp,
+        'baseline_unfolded_fx':exponential_baseline_only_temp, 
     }
 
     global_fit_params, cov, predicted_lst, _, _ = fit_oligomer_unfolding_many_signals(
@@ -530,8 +528,8 @@ def test_fit_trimer_unfolding_many_signals_exponential():
         'signal_ids' : [0 for _ in range(len(signal_list))],
         'model_scale_factor': False,
         'cp_value' : CP0_VAL,
-        'baseline_native_fx':exponential_baseline,
-        'baseline_unfolded_fx':exponential_baseline, 
+        'baseline_native_fx':exponential_baseline_only_temp,
+        'baseline_unfolded_fx':exponential_baseline_only_temp, 
     }
 
     global_fit_params, cov, predicted_lst, _, _ = fit_oligomer_unfolding_many_signals(
@@ -574,8 +572,8 @@ def test_fit_tetramer_unfolding_many_signals_exponential():
         'signal_ids' : [0 for _ in range(len(signal_list))],
         'model_scale_factor': False,
         'cp_value' : CP0_VAL,
-        'baseline_native_fx':exponential_baseline,
-        'baseline_unfolded_fx':exponential_baseline, 
+        'baseline_native_fx':exponential_baseline_only_temp,
+        'baseline_unfolded_fx':exponential_baseline_only_temp, 
     }
 
     global_fit_params, cov, predicted_lst, _, _ = fit_oligomer_unfolding_many_signals(

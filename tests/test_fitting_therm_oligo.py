@@ -12,8 +12,7 @@ from pychemelt.utils.fitting import (
     fit_oligomer_unfolding_many_signals,
 )
 
-from pychemelt.utils.math import constant_baseline
-
+from pychemelt.utils.math import constant_baseline_only_temp as constant_baseline
 from pychemelt.utils.signals import (
     map_two_state_model_to_signal_fx
 )
@@ -32,9 +31,7 @@ CP0_VAL = 1.8
 
 
 INTERCEPT_N = 50
-C_N_VAL = 0
 INTERCEPT_U = 100
-C_U_VAL = 0
 
 rng = np.random.default_rng(RNG_SEED)
 
@@ -42,14 +39,12 @@ def_params = {
     'dHm': DHm_VAL,
     'Tm': Tm_VAL+273.15,
     'Cp': CP0_VAL,
-    'p1_N': C_N_VAL,
-    'p2_N': INTERCEPT_N,
+    'p1_N': INTERCEPT_N,
+    'p2_N': 0,
     'p3_N': 0,
-    'p4_N': 0,
-    'p1_U': C_U_VAL,
-    'p2_U': INTERCEPT_U,
+    'p1_U': INTERCEPT_U,
+    'p2_U': 0,
     'p3_U': 0,
-    'p4_U': 0,
     'baseline_N_fx':constant_baseline,
     'baseline_U_fx':constant_baseline,
 }

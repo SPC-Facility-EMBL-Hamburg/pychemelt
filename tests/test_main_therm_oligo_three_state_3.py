@@ -18,7 +18,8 @@ import pytest
 
 from pychemelt.thermal_oligomer import ThermalOligomer
 
-from pychemelt.utils.math import linear_baseline, exponential_baseline
+from pychemelt.utils.math import linear_baseline_only_temp as linear_baseline
+from pychemelt.utils.math import exponential_baseline_only_temp as exponential_baseline
 
 from pychemelt.utils.signals import (
     map_three_state_model_to_signal_fx
@@ -45,11 +46,9 @@ INTERCEPT_I = 15
 
 INTERCEPT_N = 24
 SLOPE_N = -0.27
-C_N_VAL = 0
 INTERCEPT_U = 1
 PRE_EXP_U = 80.5
 EXPONENT_U = 0.0224
-C_U_VAL = 0
 
 rng = np.random.default_rng(RNG_SEED)
 
@@ -59,14 +58,12 @@ def_params = {
     'T1': Tm_VAL_1 + 273.15,
     'T2': Tm_VAL_2 + 273.15,
     'bI': INTERCEPT_I,
-    'p1_N': C_N_VAL,
-    'p2_N': INTERCEPT_N,
-    'p3_N': SLOPE_N,
-    'p4_N': 0,
-    'p1_U': C_U_VAL,
-    'p2_U': INTERCEPT_U,
-    'p3_U': PRE_EXP_U,
-    'p4_U': EXPONENT_U,
+    'p1_N': INTERCEPT_N,
+    'p2_N': SLOPE_N,
+    'p3_N': 0,
+    'p1_U': INTERCEPT_U,
+    'p2_U': PRE_EXP_U,
+    'p3_U': EXPONENT_U,
     'baseline_N_fx': linear_baseline,
     'baseline_U_fx': exponential_baseline,
     "Cp1": CP1,

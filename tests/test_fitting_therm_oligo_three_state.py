@@ -13,7 +13,7 @@ from pychemelt.utils.fitting import (
     evaluate_need_to_refit_three_state
 )
 
-from pychemelt.utils.math import constant_baseline
+from pychemelt.utils.math import constant_baseline_only_temp as constant_baseline
 
 from pychemelt.utils.signals import (
     map_three_state_model_to_signal_fx
@@ -33,17 +33,8 @@ Tm_VAL_1 = 50
 Tm_VAL_2 = 70
 
 INTERCEPT_I = 100
-
 INTERCEPT_N = 80
-PRE_EXP_N = 0
-C_N_VAL = 0
-ALPHA_N_VAL = 0
-
-
 INTERCEPT_U = 110
-PRE_EXP_U = 0
-C_U_VAL = 0
-ALPHA_U_VAL = 0
 
 rng = np.random.default_rng(RNG_SEED)
 
@@ -53,14 +44,12 @@ def_params = {
     'T1': Tm_VAL_1+273.15,
     'T2': Tm_VAL_2+273.15,
     'bI': INTERCEPT_I,
-    'p1_N': C_N_VAL,
-    'p2_N': INTERCEPT_N,
-    'p3_N': PRE_EXP_N,
-    'p4_N': ALPHA_N_VAL,
-    'p1_U': C_U_VAL,
-    'p2_U': INTERCEPT_U,
-    'p3_U': PRE_EXP_U,
-    'p4_U': ALPHA_U_VAL,
+    'p1_N': INTERCEPT_N,
+    'p2_N': 0,
+    'p3_N': 0,
+    'p1_U': INTERCEPT_U,
+    'p2_U': 0,
+    'p3_U': 0,
     'baseline_N_fx':constant_baseline,
     'baseline_U_fx':constant_baseline,
     "Cp1": 0.5,

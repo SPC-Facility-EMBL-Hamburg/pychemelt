@@ -17,6 +17,10 @@ __all__ = [
     "linear_baseline",
     "quadratic_baseline",
     "exponential_baseline",
+    "constant_baseline_only_temp",
+    "linear_baseline_only_temp",
+    "quadratic_baseline_only_temp",
+    "exponential_baseline_only_temp",
     "is_evenly_spaced",
     "first_derivative_savgol",
     "relative_errors",
@@ -195,6 +199,96 @@ def exponential_baseline(dt,d,den_slope,a,c,alpha):
     """
 
     return a + c * np.exp(-alpha * dt) + den_slope * d
+
+def constant_baseline_only_temp(dt,a,*args):
+
+    """
+    Baseline function with no dependence on temperature or denaturant concentration
+
+    Parameters
+    ----------
+    dt : float
+        delta temperature, not used here but required for compatibility with other baseline functions
+    a : float
+        intercept of the baseline
+
+    Returns
+    ------
+    float
+        Baseline signal
+    """
+
+    return a
+
+def linear_baseline_only_temp(dt,a,b,*args):
+
+    """
+    Baseline function with linear dependence on temperature and no dependence on denaturant concentration
+
+    Parameters
+    ----------
+    dt : float
+        delta temperature
+    a : float
+        intercept of the baseline
+    b : float
+        linear dependence of signal on temperature
+
+    Returns
+    ------
+    float
+        Baseline signal
+    """
+
+    return a + b*dt
+
+def quadratic_baseline_only_temp(dt,a,b,c):
+
+    """
+    Baseline function with quadratic dependence on temperature and no dependence on denaturant concentration
+
+    Parameters
+    ----------
+    dt : float
+        delta temperature
+    a : float
+        intercept of the baseline
+    b : float
+        linear dependence of signal on temperature
+    c : float
+        quadratic dependence of signal on temperature
+
+    Returns
+    ------
+    float
+        Baseline signal
+    """
+
+    return a + b*dt + c*dt**2
+
+def exponential_baseline_only_temp(dt,a,c,alpha):
+
+    """
+    Baseline function with exponential dependence on temperature and no dependence on denaturant concentration
+
+    Parameters
+    ----------
+    dt : float
+        delta temperature
+    a : float
+        intercept of the baseline
+    c : float
+        pre-exponential factor for the dependence on temperature
+    alpha : float
+        exponential coefficient for the dependence on temperature
+
+    Returns
+    ------
+    float
+        Baseline signal
+    """
+
+    return a + c * np.exp(-alpha * dt)
 
 def is_evenly_spaced(x, tol = 1e-4):
     """

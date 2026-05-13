@@ -558,11 +558,40 @@ def fit_tc_unfolding_single_slopes(
         i += n_datasets
 
     # ------------------------------------------------------------
-    # Vectorized unfolding model
+    # Pre-cache parameter names for faster access (use tuples for immutability)
+    # ------------------------------------------------------------
+    p1N_names = tuple(f"p1N_{j}" for j in range(n_datasets))
+    p1U_names = tuple(f"p1U_{j}" for j in range(n_datasets))
+    
+    p2N_names = tuple(f"p2N_{j}" for j in range(n_datasets)) if use_p2N else None
+    p2U_names = tuple(f"p2U_{j}" for j in range(n_datasets)) if use_p2U else None
+    p3N_names = tuple(f"p3N_{j}" for j in range(n_datasets)) if use_p3N else None
+    p3U_names = tuple(f"p3U_{j}" for j in range(n_datasets)) if use_p3U else None
+
+    # Pre-allocate arrays for baseline parameters (per-dataset)
+    p1N_arr = np.empty(n_datasets, dtype=float)
+    p1U_arr = np.empty(n_datasets, dtype=float)
+    p2N_arr = np.empty(n_datasets, dtype=float) if use_p2N else None
+    p2U_arr = np.empty(n_datasets, dtype=float) if use_p2U else None
+    p3N_arr = np.empty(n_datasets, dtype=float) if use_p3N else None
+    p3U_arr = np.empty(n_datasets, dtype=float) if use_p3U else None
+
+    # Pre-allocate expanded arrays (full length) for in-place operations
+    p1N_all = np.empty(len(T_all), dtype=float)
+    p1U_all = np.empty(len(T_all), dtype=float)
+    p2N_all = np.empty(len(T_all), dtype=float) if use_p2N else None
+    p2U_all = np.empty(len(T_all), dtype=float) if use_p2U else None
+    p3N_all = np.empty(len(T_all), dtype=float) if use_p3N else None
+    p3U_all = np.empty(len(T_all), dtype=float) if use_p3U else None
+
+    # Pre-compute indices for fancy indexing (replaces np.repeat)
+    dataset_indices = np.repeat(np.arange(n_datasets), lengths)
+
+    # ------------------------------------------------------------
+    # Vectorized unfolding model (highly optimized)
     # ------------------------------------------------------------
     def unfolding_model(pars):
-        idx = 0
-
+        # Extract thermodynamic parameters
         if tm_value is None:
             Tm = pars["Tm"].value
         else:
@@ -579,63 +608,55 @@ def fit_tc_unfolding_single_slopes(
             Cp0 = cp_value
 
         m0 = pars["m0"].value
+        m1 = pars["m1"].value if fit_m1 else 0.0
 
-        if fit_m1:
-            m1 = pars["m1"].value
-        else:
-            m1 = 0.0
+        # Extract baseline parameters efficiently using pre-cached names
+        for j in range(n_datasets):
+            p1N_arr[j] = pars[p1N_names[j]].value
+            p1U_arr[j] = pars[p1U_names[j]].value
+        
+        # Use fancy indexing with pre-allocated arrays (faster than np.repeat)
+        p1N_all[:] = p1N_arr[dataset_indices]
+        p1U_all[:] = p1U_arr[dataset_indices]
 
-        p1N = np.array([pars[f"p1N_{j}"].value for j in range(n_datasets)])
-        p1U = np.array([pars[f"p1U_{j}"].value for j in range(n_datasets)])
-
+        # Handle optional baseline parameters
         if use_p2N:
-            p2N = np.array([pars[f"p2N_{j}"].value for j in range(n_datasets)])
+            for j in range(n_datasets):
+                p2N_arr[j] = pars[p2N_names[j]].value
+            p2N_all[:] = p2N_arr[dataset_indices]
+            p2N_arg = p2N_all
         else:
-            p2N = 0.0
+            p2N_arg = 0.0
 
         if use_p2U:
-            p2U = np.array([pars[f"p2U_{j}"].value for j in range(n_datasets)])
+            for j in range(n_datasets):
+                p2U_arr[j] = pars[p2U_names[j]].value
+            p2U_all[:] = p2U_arr[dataset_indices]
+            p2U_arg = p2U_all
         else:
-            p2U = 0.0
+            p2U_arg = 0.0
 
         if use_p3N:
-            p3N = np.array([pars[f"p3N_{j}"].value for j in range(n_datasets)])
+            for j in range(n_datasets):
+                p3N_arr[j] = pars[p3N_names[j]].value
+            p3N_all[:] = p3N_arr[dataset_indices]
+            p3N_arg = p3N_all
         else:
-            p3N = 0.0
+            p3N_arg = 0.0
 
         if use_p3U:
-            p3U = np.array([pars[f"p3U_{j}"].value for j in range(n_datasets)])
+            for j in range(n_datasets):
+                p3U_arr[j] = pars[p3U_names[j]].value
+            p3U_all[:] = p3U_arr[dataset_indices]
+            p3U_arg = p3U_all
         else:
-            p3U = 0.0
-
-        p1N_all = np.repeat(p1N, lengths)
-        p1U_all = np.repeat(p1U, lengths)
-
-        if np.isscalar(p2N):
-            p2N_all = p2N
-        else:
-            p2N_all = np.repeat(p2N, lengths)
-
-        if np.isscalar(p2U):
-            p2U_all = p2U
-        else:
-            p2U_all = np.repeat(p2U, lengths)
-
-        if np.isscalar(p3N):
-            p3N_all = p3N
-        else:
-            p3N_all = np.repeat(p3N, lengths)
-
-        if np.isscalar(p3U):
-            p3U_all = p3U
-        else:
-            p3U_all = np.repeat(p3U, lengths)
+            p3U_arg = 0.0
 
         return signal_fx(
             T_all, d_all,
             DHm, Tm, Cp0, m0, m1,
-            0, p1N_all, p2N_all, p3N_all,
-            0, p1U_all, p2U_all, p3U_all,
+            0, p1N_all, p2N_arg, p3N_arg,
+            0, p1U_all, p2U_arg, p3U_arg,
             baseline_native_fx,
             baseline_unfolded_fx,
             c_all
@@ -802,6 +823,36 @@ def fit_oligomer_unfolding_single_slopes(
             add_param(f"p3U_{j}", initial_parameters[i + j], low_bounds[i + j], high_bounds[i + j])
         i += n_datasets
 
+    # ------------------------------------------------------------
+    # Pre-cache parameter names for faster access (use tuples for immutability)
+    # ------------------------------------------------------------
+    p1N_names = tuple(f"p1N_{j}" for j in range(n_datasets))
+    p1U_names = tuple(f"p1U_{j}" for j in range(n_datasets))
+    
+    p2N_names = tuple(f"p2N_{j}" for j in range(n_datasets)) if use_p2N else None
+    p2U_names = tuple(f"p2U_{j}" for j in range(n_datasets)) if use_p2U else None
+    p3N_names = tuple(f"p3N_{j}" for j in range(n_datasets)) if use_p3N else None
+    p3U_names = tuple(f"p3U_{j}" for j in range(n_datasets)) if use_p3U else None
+
+    # Pre-allocate arrays for baseline parameters (per-dataset)
+    p1N_arr = np.empty(n_datasets, dtype=float)
+    p1U_arr = np.empty(n_datasets, dtype=float)
+    p2N_arr = np.empty(n_datasets, dtype=float) if use_p2N else None
+    p2U_arr = np.empty(n_datasets, dtype=float) if use_p2U else None
+    p3N_arr = np.empty(n_datasets, dtype=float) if use_p3N else None
+    p3U_arr = np.empty(n_datasets, dtype=float) if use_p3U else None
+
+    # Pre-allocate expanded arrays (full length) for in-place operations
+    p1N_all = np.empty(len(T_all), dtype=float)
+    p1U_all = np.empty(len(T_all), dtype=float)
+    p2N_all = np.empty(len(T_all), dtype=float) if use_p2N else None
+    p2U_all = np.empty(len(T_all), dtype=float) if use_p2U else None
+    p3N_all = np.empty(len(T_all), dtype=float) if use_p3N else None
+    p3U_all = np.empty(len(T_all), dtype=float) if use_p3U else None
+
+    # Pre-compute indices for fancy indexing (replaces np.repeat)
+    dataset_indices = np.repeat(np.arange(n_datasets), lengths)
+
     def model(pars):
 
         """
@@ -845,34 +896,53 @@ def fit_oligomer_unfolding_single_slopes(
         else:
             Cp0 = cp_value
 
-        p1N = np.repeat(np.array([pars[f"p1N_{j}"].value for j in range(n_datasets)]), lengths)
-        p1U = np.repeat(np.array([pars[f"p1U_{j}"].value for j in range(n_datasets)]), lengths)
+        # Extract baseline parameters efficiently using pre-cached names
+        for j in range(n_datasets):
+            p1N_arr[j] = pars[p1N_names[j]].value
+            p1U_arr[j] = pars[p1U_names[j]].value
+        
+        # Use fancy indexing with pre-allocated arrays (faster than np.repeat)
+        p1N_all[:] = p1N_arr[dataset_indices]
+        p1U_all[:] = p1U_arr[dataset_indices]
 
+        # Handle optional baseline parameters
         if use_p2N:
-            p2N = np.repeat(np.array([pars[f"p2N_{j}"].value for j in range(n_datasets)]), lengths)
+            for j in range(n_datasets):
+                p2N_arr[j] = pars[p2N_names[j]].value
+            p2N_all[:] = p2N_arr[dataset_indices]
+            p2N_arg = p2N_all
         else:
-            p2N = 0.0
+            p2N_arg = 0.0
 
         if use_p2U:
-            p2U = np.repeat(np.array([pars[f"p2U_{j}"].value for j in range(n_datasets)]), lengths)
+            for j in range(n_datasets):
+                p2U_arr[j] = pars[p2U_names[j]].value
+            p2U_all[:] = p2U_arr[dataset_indices]
+            p2U_arg = p2U_all
         else:
-            p2U = 0.0
+            p2U_arg = 0.0
 
         if use_p3N:
-            p3N = np.repeat(np.array([pars[f"p3N_{j}"].value for j in range(n_datasets)]), lengths)
+            for j in range(n_datasets):
+                p3N_arr[j] = pars[p3N_names[j]].value
+            p3N_all[:] = p3N_arr[dataset_indices]
+            p3N_arg = p3N_all
         else:
-            p3N = 0.0
+            p3N_arg = 0.0
 
         if use_p3U:
-            p3U = np.repeat(np.array([pars[f"p3U_{j}"].value for j in range(n_datasets)]), lengths)
+            for j in range(n_datasets):
+                p3U_arr[j] = pars[p3U_names[j]].value
+            p3U_all[:] = p3U_arr[dataset_indices]
+            p3U_arg = p3U_all
         else:
-            p3U = 0.0
+            p3U_arg = 0.0
 
         # ---- Single vectorized signal evaluation ----
         return signal_fx(
                 T_all,C_all, Tm, DHm,
-                0, p1N, p2N, p3N,
-                0, p1U, p2U, p3U,
+                p1N_all, p2N_arg, p3N_arg,
+                p1U_all, p2U_arg, p3U_arg,
                 baseline_native_fx,
                 baseline_unfolded_fx,
                 Cp0,
@@ -1047,19 +1117,34 @@ def fit_oligomer_unfolding_three_states_single_slopes(
             add_param(f"p3U_{j}", initial_parameters[i + j], low_bounds[i + j], high_bounds[i + j])
         i += n_datasets
 
-    # Prebuild parameter name lists for fast extraction
-    p1N_names = [f"p1N_{j}" for j in range(n_datasets)]
-    p1U_names = [f"p1U_{j}" for j in range(n_datasets)]
-    bI_names = [f"bI_{j}" for j in range(n_datasets)]
-    p2N_names = [f"p2N_{j}" for j in range(n_datasets)] if use_p2N else None
-    p2U_names = [f"p2U_{j}" for j in range(n_datasets)] if use_p2U else None
-    p3N_names = [f"p3N_{j}" for j in range(n_datasets)] if use_p3N else None
-    p3U_names = [f"p3U_{j}" for j in range(n_datasets)] if use_p3U else None
+    # ------------------------------------------------------------
+    # Pre-cache parameter names for faster access (use tuples for immutability)
+    # ------------------------------------------------------------
+    p1N_names = tuple(f"p1N_{j}" for j in range(n_datasets))
+    p1U_names = tuple(f"p1U_{j}" for j in range(n_datasets))
+    bI_names = tuple(f"bI_{j}" for j in range(n_datasets))
+    p2N_names = tuple(f"p2N_{j}" for j in range(n_datasets)) if use_p2N else None
+    p2U_names = tuple(f"p2U_{j}" for j in range(n_datasets)) if use_p2U else None
+    p3N_names = tuple(f"p3N_{j}" for j in range(n_datasets)) if use_p3N else None
+    p3U_names = tuple(f"p3U_{j}" for j in range(n_datasets)) if use_p3U else None
 
-    def get_vals(pars, names):
-        if names is None:
-            return None
-        return np.fromiter((pars[n].value for n in names), dtype=float, count=n_datasets)
+    # Pre-allocate arrays for baseline parameters (per-dataset)
+    p1N_arr = np.empty(n_datasets, dtype=float)
+    p1U_arr = np.empty(n_datasets, dtype=float)
+    bI_arr = np.empty(n_datasets, dtype=float)
+    p2N_arr = np.empty(n_datasets, dtype=float) if use_p2N else None
+    p2U_arr = np.empty(n_datasets, dtype=float) if use_p2U else None
+    p3N_arr = np.empty(n_datasets, dtype=float) if use_p3N else None
+    p3U_arr = np.empty(n_datasets, dtype=float) if use_p3U else None
+
+    # Pre-allocate expanded arrays (full length) for in-place operations
+    p1N_all = np.empty(len(T_all), dtype=float)
+    p1U_all = np.empty(len(T_all), dtype=float)
+    bI_all = np.empty(len(T_all), dtype=float)
+    p2N_all = np.empty(len(T_all), dtype=float) if use_p2N else None
+    p2U_all = np.empty(len(T_all), dtype=float) if use_p2U else None
+    p3N_all = np.empty(len(T_all), dtype=float) if use_p3N else None
+    p3U_all = np.empty(len(T_all), dtype=float) if use_p3U else None
 
     def model(pars):
         Tm1 = pars["Tm1"].value
@@ -1074,20 +1159,49 @@ def fit_oligomer_unfolding_three_states_single_slopes(
             Cp1 = 0.0
             CpTh = 0.0
 
-        p1N = get_vals(pars, p1N_names)[ds_idx]
-        p1U = get_vals(pars, p1U_names)[ds_idx]
-        bI = get_vals(pars, bI_names)[ds_idx]
+        # Extract baseline parameters efficiently using pre-cached names
+        for j in range(n_datasets):
+            p1N_arr[j] = pars[p1N_names[j]].value
+            p1U_arr[j] = pars[p1U_names[j]].value
+            bI_arr[j] = pars[bI_names[j]].value
+        
+        # Use fancy indexing with pre-allocated arrays (faster than creating new arrays)
+        p1N_all[:] = p1N_arr[ds_idx]
+        p1U_all[:] = p1U_arr[ds_idx]
+        bI_all[:] = bI_arr[ds_idx]
 
-        p2N = get_vals(pars, p2N_names)
-        p2N = p2N[ds_idx] if p2N is not None else 0
-        p2U = get_vals(pars, p2U_names)
-        p2U = p2U[ds_idx] if p2U is not None else 0
+        # Handle optional baseline parameters
+        if use_p2N:
+            for j in range(n_datasets):
+                p2N_arr[j] = pars[p2N_names[j]].value
+            p2N_all[:] = p2N_arr[ds_idx]
+            p2N_arg = p2N_all
+        else:
+            p2N_arg = 0
 
-        p3N = get_vals(pars, p3N_names)
-        p3N = p3N[ds_idx] if p3N is not None else 0
+        if use_p2U:
+            for j in range(n_datasets):
+                p2U_arr[j] = pars[p2U_names[j]].value
+            p2U_all[:] = p2U_arr[ds_idx]
+            p2U_arg = p2U_all
+        else:
+            p2U_arg = 0
 
-        p3U = get_vals(pars, p3U_names)
-        p3U = p3U[ds_idx] if p3U is not None else 0
+        if use_p3N:
+            for j in range(n_datasets):
+                p3N_arr[j] = pars[p3N_names[j]].value
+            p3N_all[:] = p3N_arr[ds_idx]
+            p3N_arg = p3N_all
+        else:
+            p3N_arg = 0
+
+        if use_p3U:
+            for j in range(n_datasets):
+                p3U_arr[j] = pars[p3U_names[j]].value
+            p3U_all[:] = p3U_arr[ds_idx]
+            p3U_arg = p3U_all
+        else:
+            p3U_arg = 0
 
         return signal_fx(
             T_all,
@@ -1096,17 +1210,15 @@ def fit_oligomer_unfolding_three_states_single_slopes(
             DHm1,
             Tm2,
             DHm2,
-            0,
-            p1N,
-            p2N,
-            p3N,
-            0,
-            p1U,
-            p2U,
-            p3U,
+            p1N_all,
+            p2N_arg,
+            p3N_arg,
+            p1U_all,
+            p2U_arg,
+            p3U_arg,
             baseline_native_fx,
             baseline_unfolded_fx,
-            bI,
+            bI_all,
             Cp1,
             CpTh,
         )
@@ -1271,6 +1383,24 @@ def fit_tc_unfolding_shared_slopes_many_signals(
             add_param(f"p3U_{j}", initial_parameters[i + j], low_bounds[i + j], high_bounds[i + j])
         i += n_signals
 
+    # ------------------------------------------------------------
+    # Pre-cache parameter names for faster access
+    # ------------------------------------------------------------
+    p1N_names = tuple(f"p1N_{j}" for j in range(n_datasets))
+    p1U_names = tuple(f"p1U_{j}" for j in range(n_datasets))
+    p2N_names = tuple(f"p2N_{j}" for j in range(n_signals)) if baseline_native_params[0] else None
+    p2U_names = tuple(f"p2U_{j}" for j in range(n_signals)) if baseline_unfolded_params[0] else None
+    p3N_names = tuple(f"p3N_{j}" for j in range(n_signals)) if baseline_native_params[1] else None
+    p3U_names = tuple(f"p3U_{j}" for j in range(n_signals)) if baseline_unfolded_params[1] else None
+
+    # Pre-allocate arrays
+    intercepts_folded_arr = np.empty(n_datasets, dtype=float)
+    intercepts_unfolded_arr = np.empty(n_datasets, dtype=float)
+    p2_n_s_arr = np.empty(n_signals, dtype=float) if baseline_native_params[0] else None
+    p2_u_s_arr = np.empty(n_signals, dtype=float) if baseline_unfolded_params[0] else None
+    p3_n_s_arr = np.empty(n_signals, dtype=float) if baseline_native_params[1] else None
+    p3_u_s_arr = np.empty(n_signals, dtype=float) if baseline_unfolded_params[1] else None
+
     def residuals(pars):
         if tm_value is None:
             Tm = pars["Tm"].value
@@ -1290,29 +1420,39 @@ def fit_tc_unfolding_shared_slopes_many_signals(
         m0 = pars["m0"].value
         m1 = pars["m1"].value if fit_m1 else 0
 
-        intercepts_folded = np.array([pars[f"p1N_{j}"].value for j in range(n_datasets)])
-        intercepts_unfolded = np.array([pars[f"p1U_{j}"].value for j in range(n_datasets)])
+        # Extract per-dataset intercepts efficiently
+        for j in range(n_datasets):
+            intercepts_folded_arr[j] = pars[p1N_names[j]].value
+            intercepts_unfolded_arr[j] = pars[p1U_names[j]].value
 
-        # Shared slopes / coefficients per signal type
+        # Extract shared slopes / coefficients per signal type
         if baseline_native_params[0]:
-            p2_n_s = np.array([pars[f"p2N_{j}"].value for j in range(n_signals)])
+            for j in range(n_signals):
+                p2_n_s_arr[j] = pars[p2N_names[j]].value
+            p2_n_s = p2_n_s_arr
         else:
-            p2_n_s = np.zeros(n_signals)
+            p2_n_s = 0.0
 
         if baseline_unfolded_params[0]:
-            p2_u_s = np.array([pars[f"p2U_{j}"].value for j in range(n_signals)])
+            for j in range(n_signals):
+                p2_u_s_arr[j] = pars[p2U_names[j]].value
+            p2_u_s = p2_u_s_arr
         else:
-            p2_u_s = np.zeros(n_signals)
+            p2_u_s = 0.0
 
         if baseline_native_params[1]:
-            p3_n_s = np.array([pars[f"p3N_{j}"].value for j in range(n_signals)])
+            for j in range(n_signals):
+                p3_n_s_arr[j] = pars[p3N_names[j]].value
+            p3_n_s = p3_n_s_arr
         else:
-            p3_n_s = np.zeros(n_signals)
+            p3_n_s = 0.0
 
         if baseline_unfolded_params[1]:
-            p3_u_s = np.array([pars[f"p3U_{j}"].value for j in range(n_signals)])
+            for j in range(n_signals):
+                p3_u_s_arr[j] = pars[p3U_names[j]].value
+            p3_u_s = p3_u_s_arr
         else:
-            p3_u_s = np.zeros(n_signals)
+            p3_u_s = 0.0
 
         # Vectorized evaluation for all datasets
         predicted_all = np.zeros_like(all_signal)
@@ -1324,8 +1464,8 @@ def fit_tc_unfolding_shared_slopes_many_signals(
 
             predicted_all[start:end] = signal_fx(
                 T, d, DHm, Tm, Cp0, m0, m1,
-                0, intercepts_folded[i], p2_n_s[sig_id], p3_n_s[sig_id],
-                0, intercepts_unfolded[i], p2_u_s[sig_id], p3_u_s[sig_id],
+                0, intercepts_folded_arr[i], p2_n_s[sig_id] if baseline_native_params[0] else 0.0, p3_n_s[sig_id] if baseline_native_params[1] else 0.0,
+                0, intercepts_unfolded_arr[i], p2_u_s[sig_id] if baseline_unfolded_params[0] else 0.0, p3_u_s[sig_id] if baseline_unfolded_params[1] else 0.0,
                 baseline_native_fx,
                 baseline_unfolded_fx,
                 c
@@ -1480,6 +1620,24 @@ def fit_oligomer_unfolding_shared_slopes_many_signals(
             add_param(f"p3U_{j}", initial_parameters[i + j], low_bounds[i + j], high_bounds[i + j])
         i += n_signals
 
+    # ------------------------------------------------------------
+    # Pre-cache parameter names for faster access
+    # ------------------------------------------------------------
+    p1N_names = tuple(f"p1N_{j}" for j in range(n_datasets))
+    p1U_names = tuple(f"p1U_{j}" for j in range(n_datasets))
+    p2N_names = tuple(f"p2N_{j}" for j in range(n_signals)) if baseline_native_params[0] else None
+    p2U_names = tuple(f"p2U_{j}" for j in range(n_signals)) if baseline_unfolded_params[0] else None
+    p3N_names = tuple(f"p3N_{j}" for j in range(n_signals)) if baseline_native_params[1] else None
+    p3U_names = tuple(f"p3U_{j}" for j in range(n_signals)) if baseline_unfolded_params[1] else None
+
+    # Pre-allocate arrays
+    intercepts_folded_arr = np.empty(n_datasets, dtype=float)
+    intercepts_unfolded_arr = np.empty(n_datasets, dtype=float)
+    p2_n_s_arr = np.empty(n_signals, dtype=float) if baseline_native_params[0] else None
+    p2_u_s_arr = np.empty(n_signals, dtype=float) if baseline_unfolded_params[0] else None
+    p3_n_s_arr = np.empty(n_signals, dtype=float) if baseline_native_params[1] else None
+    p3_u_s_arr = np.empty(n_signals, dtype=float) if baseline_unfolded_params[1] else None
+
     def residuals(pars):
         if tm_value is None:
             Tm = pars["Tm"].value
@@ -1496,28 +1654,39 @@ def fit_oligomer_unfolding_shared_slopes_many_signals(
         else:
             Cp0 = cp_value
 
-        intercepts_folded = np.array([pars[f"p1N_{j}"].value for j in range(n_datasets)])
-        intercepts_unfolded = np.array([pars[f"p1U_{j}"].value for j in range(n_datasets)])
+        # Extract per-dataset intercepts efficiently
+        for j in range(n_datasets):
+            intercepts_folded_arr[j] = pars[p1N_names[j]].value
+            intercepts_unfolded_arr[j] = pars[p1U_names[j]].value
 
+        # Extract shared slopes / coefficients per signal type
         if baseline_native_params[0]:
-            p2_n_s = np.array([pars[f"p2N_{j}"].value for j in range(n_signals)])
+            for j in range(n_signals):
+                p2_n_s_arr[j] = pars[p2N_names[j]].value
+            p2_n_s = p2_n_s_arr
         else:
-            p2_n_s = np.zeros(n_signals)
+            p2_n_s = 0.0
 
         if baseline_unfolded_params[0]:
-            p2_u_s = np.array([pars[f"p2U_{j}"].value for j in range(n_signals)])
+            for j in range(n_signals):
+                p2_u_s_arr[j] = pars[p2U_names[j]].value
+            p2_u_s = p2_u_s_arr
         else:
-            p2_u_s = np.zeros(n_signals)
+            p2_u_s = 0.0
 
         if baseline_native_params[1]:
-            p3_n_s = np.array([pars[f"p3N_{j}"].value for j in range(n_signals)])
+            for j in range(n_signals):
+                p3_n_s_arr[j] = pars[p3N_names[j]].value
+            p3_n_s = p3_n_s_arr
         else:
-            p3_n_s = np.zeros(n_signals)
+            p3_n_s = 0.0
 
         if baseline_unfolded_params[1]:
-            p3_u_s = np.array([pars[f"p3U_{j}"].value for j in range(n_signals)])
+            for j in range(n_signals):
+                p3_u_s_arr[j] = pars[p3U_names[j]].value
+            p3_u_s = p3_u_s_arr
         else:
-            p3_u_s = np.zeros(n_signals)
+            p3_u_s = 0.0
 
         # Vectorized evaluation for all datasets
         predicted_all = np.zeros_like(all_signal)
@@ -1528,8 +1697,8 @@ def fit_oligomer_unfolding_shared_slopes_many_signals(
 
             predicted_all[start:end] = signal_fx(
                 T, c, Tm, DHm,
-                0, intercepts_folded[i], p2_n_s[sig_id], p3_n_s[sig_id],
-                0, intercepts_unfolded[i], p2_u_s[sig_id], p3_u_s[sig_id],
+                intercepts_folded_arr[i], p2_n_s[sig_id] if baseline_native_params[0] else 0.0, p3_n_s[sig_id] if baseline_native_params[1] else 0.0,
+                intercepts_unfolded_arr[i], p2_u_s[sig_id] if baseline_unfolded_params[0] else 0.0, p3_u_s[sig_id] if baseline_unfolded_params[1] else 0.0,
                 baseline_native_fx,
                 baseline_unfolded_fx,
                 Cp0
@@ -1715,6 +1884,26 @@ def fit_oligomer_unfolding_three_states_shared_slopes_many_signals(
             add_param(f"p3U_{j}", initial_parameters[i + j], low_bounds[i + j], high_bounds[i + j])
         i += n_signals
 
+    # ------------------------------------------------------------
+    # Pre-cache parameter names for faster access
+    # ------------------------------------------------------------
+    p1N_names = tuple(f"p1N_{j}" for j in range(n_datasets))
+    p1U_names = tuple(f"p1U_{j}" for j in range(n_datasets))
+    bI_names = tuple(f"bI_{j}" for j in range(n_datasets))
+    p2N_names = tuple(f"p2N_{j}" for j in range(n_signals)) if baseline_native_params[0] else None
+    p2U_names = tuple(f"p2U_{j}" for j in range(n_signals)) if baseline_unfolded_params[0] else None
+    p3N_names = tuple(f"p3N_{j}" for j in range(n_signals)) if baseline_native_params[1] else None
+    p3U_names = tuple(f"p3U_{j}" for j in range(n_signals)) if baseline_unfolded_params[1] else None
+
+    # Pre-allocate arrays
+    intercepts_folded_arr = np.empty(n_datasets, dtype=float)
+    intercepts_unfolded_arr = np.empty(n_datasets, dtype=float)
+    intercepts_intermediates_arr = np.empty(n_datasets, dtype=float)
+    p2_n_s_arr = np.empty(n_signals, dtype=float) if baseline_native_params[0] else None
+    p2_u_s_arr = np.empty(n_signals, dtype=float) if baseline_unfolded_params[0] else None
+    p3_n_s_arr = np.empty(n_signals, dtype=float) if baseline_native_params[1] else None
+    p3_u_s_arr = np.empty(n_signals, dtype=float) if baseline_unfolded_params[1] else None
+
     def residuals(pars):
         """
         Calculate the thermal unfolding profile of many curves at the same time
@@ -1756,29 +1945,40 @@ def fit_oligomer_unfolding_three_states_shared_slopes_many_signals(
             Cp1 = 0.0
             CpTh = 0.0
 
-        intercepts_folded = np.array([pars[f"p1N_{j}"].value for j in range(n_datasets)])
-        intercepts_unfolded = np.array([pars[f"p1U_{j}"].value for j in range(n_datasets)])
-        intercepts_intermediates = np.array([pars[f"bI_{j}"].value for j in range(n_datasets)])
+        # Extract per-dataset intercepts efficiently
+        for j in range(n_datasets):
+            intercepts_folded_arr[j] = pars[p1N_names[j]].value
+            intercepts_unfolded_arr[j] = pars[p1U_names[j]].value
+            intercepts_intermediates_arr[j] = pars[bI_names[j]].value
 
+        # Extract shared slopes / coefficients per signal type
         if baseline_native_params[0]:
-            p2_n_s = np.array([pars[f"p2N_{j}"].value for j in range(n_signals)])
+            for j in range(n_signals):
+                p2_n_s_arr[j] = pars[p2N_names[j]].value
+            p2_n_s = p2_n_s_arr
         else:
-            p2_n_s = np.zeros(n_signals)
+            p2_n_s = 0.0
 
         if baseline_unfolded_params[0]:
-            p2_u_s = np.array([pars[f"p2U_{j}"].value for j in range(n_signals)])
+            for j in range(n_signals):
+                p2_u_s_arr[j] = pars[p2U_names[j]].value
+            p2_u_s = p2_u_s_arr
         else:
-            p2_u_s = np.zeros(n_signals)
+            p2_u_s = 0.0
 
         if baseline_native_params[1]:
-            p3_n_s = np.array([pars[f"p3N_{j}"].value for j in range(n_signals)])
+            for j in range(n_signals):
+                p3_n_s_arr[j] = pars[p3N_names[j]].value
+            p3_n_s = p3_n_s_arr
         else:
-            p3_n_s = np.zeros(n_signals)
+            p3_n_s = 0.0
 
         if baseline_unfolded_params[1]:
-            p3_u_s = np.array([pars[f"p3U_{j}"].value for j in range(n_signals)])
+            for j in range(n_signals):
+                p3_u_s_arr[j] = pars[p3U_names[j]].value
+            p3_u_s = p3_u_s_arr
         else:
-            p3_u_s = np.zeros(n_signals)
+            p3_u_s = 0.0
 
         # Vectorized evaluation for all datasets
         predicted_all = np.zeros_like(all_signal)
@@ -1789,11 +1989,11 @@ def fit_oligomer_unfolding_three_states_shared_slopes_many_signals(
 
             predicted_all[start:end] = signal_fx(
                 T, c, Tm1, DHm1, Tm2, DHm2,
-                0, intercepts_folded[i], p2_n_s[sig_id], p3_n_s[sig_id],
-                0, intercepts_unfolded[i], p2_u_s[sig_id], p3_u_s[sig_id],
+                intercepts_folded_arr[i], p2_n_s[sig_id] if baseline_native_params[0] else 0.0, p3_n_s[sig_id] if baseline_native_params[1] else 0.0,
+                intercepts_unfolded_arr[i], p2_u_s[sig_id] if baseline_unfolded_params[0] else 0.0, p3_u_s[sig_id] if baseline_unfolded_params[1] else 0.0,
                 baseline_native_fx,
                 baseline_unfolded_fx,
-                intercepts_intermediates[i],
+                intercepts_intermediates_arr[i],
                 Cp1, CpTh,
             )
 
@@ -1973,6 +2173,28 @@ def fit_tc_unfolding_many_signals(
             add_param(f"sf_{k}", initial_parameters[i], low_bounds[i], high_bounds[i])
             i += 1
 
+    # ------------------------------------------------------------
+    # Pre-cache parameter names for faster access
+    # ------------------------------------------------------------
+    p2N_names = tuple(f"p2N_{j}" for j in range(n_signals))
+    p2U_names = tuple(f"p2U_{j}" for j in range(n_signals))
+    p3N_names = tuple(f"p3N_{j}" for j in range(n_signals)) if baseline_native_params[1] else None
+    p3U_names = tuple(f"p3U_{j}" for j in range(n_signals)) if baseline_unfolded_params[1] else None
+    p1N_names = tuple(f"p1N_{j}" for j in range(n_signals)) if baseline_native_params[0] else None
+    p1U_names = tuple(f"p1U_{j}" for j in range(n_signals)) if baseline_unfolded_params[0] else None
+    p4N_names = tuple(f"p4N_{j}" for j in range(n_signals)) if baseline_native_params[2] else None
+    p4U_names = tuple(f"p4U_{j}" for j in range(n_signals)) if baseline_unfolded_params[2] else None
+
+    # Pre-allocate arrays
+    p2N_arr = np.empty(n_signals, dtype=float)
+    p2U_arr = np.empty(n_signals, dtype=float)
+    p3N_arr = np.empty(n_signals, dtype=float) if baseline_native_params[1] else None
+    p3U_arr = np.empty(n_signals, dtype=float) if baseline_unfolded_params[1] else None
+    p1N_arr = np.empty(n_signals, dtype=float) if baseline_native_params[0] else None
+    p1U_arr = np.empty(n_signals, dtype=float) if baseline_unfolded_params[0] else None
+    p4N_arr = np.empty(n_signals, dtype=float) if baseline_native_params[2] else None
+    p4U_arr = np.empty(n_signals, dtype=float) if baseline_unfolded_params[2] else None
+
     def model(pars):
         Tm = pars["Tm"].value
         DHm = pars["DHm"].value
@@ -1980,38 +2202,54 @@ def fit_tc_unfolding_many_signals(
         m0 = pars["m0"].value
         m1 = pars["m1"].value if fit_m1 else 0
 
-        p2_Ns = np.array([pars[f"p2N_{j}"].value for j in range(n_signals)])
-        p2_Us = np.array([pars[f"p2U_{j}"].value for j in range(n_signals)])
+        # Extract per-signal parameters efficiently
+        for j in range(n_signals):
+            p2N_arr[j] = pars[p2N_names[j]].value
+            p2U_arr[j] = pars[p2U_names[j]].value
+        p2_Ns = p2N_arr
+        p2_Us = p2U_arr
 
         if baseline_native_params[1]:
-            p3_Ns = np.array([pars[f"p3N_{j}"].value for j in range(n_signals)])
+            for j in range(n_signals):
+                p3N_arr[j] = pars[p3N_names[j]].value
+            p3_Ns = p3N_arr
         else:
-            p3_Ns = np.zeros(n_signals)
+            p3_Ns = 0.0
 
         if baseline_unfolded_params[1]:
-            p3_Us = np.array([pars[f"p3U_{j}"].value for j in range(n_signals)])
+            for j in range(n_signals):
+                p3U_arr[j] = pars[p3U_names[j]].value
+            p3_Us = p3U_arr
         else:
-            p3_Us = np.zeros(n_signals)
+            p3_Us = 0.0
 
         if baseline_native_params[0]:
-            p1_Ns = np.array([pars[f"p1N_{j}"].value for j in range(n_signals)])
+            for j in range(n_signals):
+                p1N_arr[j] = pars[p1N_names[j]].value
+            p1_Ns = p1N_arr
         else:
-            p1_Ns = np.zeros(n_signals)
+            p1_Ns = 0.0
 
         if baseline_unfolded_params[0]:
-            p1_Us = np.array([pars[f"p1U_{j}"].value for j in range(n_signals)])
+            for j in range(n_signals):
+                p1U_arr[j] = pars[p1U_names[j]].value
+            p1_Us = p1U_arr
         else:
-            p1_Us = np.zeros(n_signals)
+            p1_Us = 0.0
 
         if baseline_native_params[2]:
-            p4_Ns = np.array([pars[f"p4N_{j}"].value for j in range(n_signals)])
+            for j in range(n_signals):
+                p4N_arr[j] = pars[p4N_names[j]].value
+            p4_Ns = p4N_arr
         else:
-            p4_Ns = np.zeros(n_signals)
+            p4_Ns = 0.0
 
         if baseline_unfolded_params[2]:
-            p4_Us = np.array([pars[f"p4U_{j}"].value for j in range(n_signals)])
+            for j in range(n_signals):
+                p4U_arr[j] = pars[p4U_names[j]].value
+            p4_Us = p4U_arr
         else:
-            p4_Us = np.zeros(n_signals)
+            p4_Us = 0.0
 
         if model_scale_factor:
             sf = np.ones(nr_den)
@@ -2023,14 +2261,15 @@ def fit_tc_unfolding_many_signals(
 
         signal = []
         for idx, T in enumerate(list_of_temperatures):
-            p1_N = p1_Ns[signal_ids[idx]]
-            p1_U = p1_Us[signal_ids[idx]]
-            p2_N = p2_Ns[signal_ids[idx]]
-            p2_U = p2_Us[signal_ids[idx]]
-            p3_N = p3_Ns[signal_ids[idx]]
-            p3_U = p3_Us[signal_ids[idx]]
-            p4_N = p4_Ns[signal_ids[idx]]
-            p4_U = p4_Us[signal_ids[idx]]
+            sig_id = signal_ids[idx]
+            p1_N = p1_Ns[sig_id] if baseline_native_params[0] else 0
+            p1_U = p1_Us[sig_id] if baseline_unfolded_params[0] else 0
+            p2_N = p2_Ns[sig_id]
+            p2_U = p2_Us[sig_id]
+            p3_N = p3_Ns[sig_id] if baseline_native_params[1] else 0
+            p3_U = p3_Us[sig_id] if baseline_unfolded_params[1] else 0
+            p4_N = p4_Ns[sig_id] if baseline_native_params[2] else 0
+            p4_U = p4_Us[sig_id] if baseline_unfolded_params[2] else 0
 
             d = denaturant_concentrations[idx]
             c = 0
@@ -2200,6 +2439,24 @@ def fit_oligomer_unfolding_many_signals(
             add_param(f"sf_{j}", initial_parameters[i + j], low_bounds[i + j], high_bounds[i + j])
         i += n_fit_factors
 
+    # ------------------------------------------------------------
+    # Pre-cache parameter names for faster access
+    # ------------------------------------------------------------
+    p1N_names = tuple(f"p1N_{j}" for j in range(n_signals))
+    p1U_names = tuple(f"p1U_{j}" for j in range(n_signals))
+    p2N_names = tuple(f"p2N_{j}" for j in range(n_signals)) if baseline_native_params[0] else None
+    p2U_names = tuple(f"p2U_{j}" for j in range(n_signals)) if baseline_unfolded_params[0] else None
+    p3N_names = tuple(f"p3N_{j}" for j in range(n_signals)) if baseline_native_params[1] else None
+    p3U_names = tuple(f"p3U_{j}" for j in range(n_signals)) if baseline_unfolded_params[1] else None
+
+    # Pre-allocate arrays
+    p1N_arr = np.empty(n_signals, dtype=float)
+    p1U_arr = np.empty(n_signals, dtype=float)
+    p2N_arr = np.empty(n_signals, dtype=float) if baseline_native_params[0] else None
+    p2U_arr = np.empty(n_signals, dtype=float) if baseline_unfolded_params[0] else None
+    p3N_arr = np.empty(n_signals, dtype=float) if baseline_native_params[1] else None
+    p3U_arr = np.empty(n_signals, dtype=float) if baseline_unfolded_params[1] else None
+
     def model(pars):
 
         """
@@ -2225,28 +2482,40 @@ def fit_oligomer_unfolding_many_signals(
         else:
             Cp0 = cp_value
 
-        p1_Ns = np.array([pars[f"p1N_{j}"].value for j in range(n_signals)])
-        p1_Us = np.array([pars[f"p1U_{j}"].value for j in range(n_signals)])
+        # Extract per-signal parameters efficiently
+        for j in range(n_signals):
+            p1N_arr[j] = pars[p1N_names[j]].value
+            p1U_arr[j] = pars[p1U_names[j]].value
+        p1_Ns = p1N_arr
+        p1_Us = p1U_arr
 
         if baseline_native_params[0]:
-            p2_Ns = np.array([pars[f"p2N_{j}"].value for j in range(n_signals)])
+            for j in range(n_signals):
+                p2N_arr[j] = pars[p2N_names[j]].value
+            p2_Ns = p2N_arr
         else:
-            p2_Ns = np.zeros(n_signals)
+            p2_Ns = 0.0
 
         if baseline_unfolded_params[0]:
-            p2_Us = np.array([pars[f"p2U_{j}"].value for j in range(n_signals)])
+            for j in range(n_signals):
+                p2U_arr[j] = pars[p2U_names[j]].value
+            p2_Us = p2U_arr
         else:
-            p2_Us = np.zeros(n_signals)
+            p2_Us = 0.0
 
         if baseline_native_params[1]:
-            p3_Ns = np.array([pars[f"p3N_{j}"].value for j in range(n_signals)])
+            for j in range(n_signals):
+                p3N_arr[j] = pars[p3N_names[j]].value
+            p3_Ns = p3N_arr
         else:
-            p3_Ns = np.zeros(n_signals)
+            p3_Ns = 0.0
 
         if baseline_unfolded_params[1]:
-            p3_Us = np.array([pars[f"p3U_{j}"].value for j in range(n_signals)])
+            for j in range(n_signals):
+                p3U_arr[j] = pars[p3U_names[j]].value
+            p3_Us = p3U_arr
         else:
-            p3_Us = np.zeros(n_signals)
+            p3_Us = 0.0
 
         if model_scale_factor:
             n_fit_factors = nr_olig - len(scale_factor_exclude_ids)
@@ -2258,21 +2527,21 @@ def fit_oligomer_unfolding_many_signals(
         signal = []
 
         for i, T in enumerate(list_of_temperatures):
-
-            p1_N = p1_Ns[signal_ids[i]]
-            p1_U = p1_Us[signal_ids[i]]
-            p2_N = p2_Ns[signal_ids[i]]
-            p2_U = p2_Us[signal_ids[i]]
-            p3_N = p3_Ns[signal_ids[i]]
-            p3_U = p3_Us[signal_ids[i]]
+            sig_id = signal_ids[i]
+            p1_N = p1_Ns[sig_id]
+            p1_U = p1_Us[sig_id]
+            p2_N = p2_Ns[sig_id] if baseline_native_params[0] else 0
+            p2_U = p2_Us[sig_id] if baseline_unfolded_params[0] else 0
+            p3_N = p3_Ns[sig_id] if baseline_native_params[1] else 0
+            p3_U = p3_Us[sig_id] if baseline_unfolded_params[1] else 0
 
             c = oligomer_concentrations[i]
 
 
             y = signal_fx(
                 T, c, Tm, DHm,
-                0, p1_N, p2_N, p3_N,
-                0, p1_U, p2_U, p3_U,
+                p1_N, p2_N, p3_N,
+                p1_U, p2_U, p3_U,
                 baseline_native_fx,
                 baseline_unfolded_fx,
                 Cp0
@@ -2447,6 +2716,26 @@ def fit_oligomer_unfolding_three_states_many_signals(
             add_param(f"sf_{j}", initial_parameters[i + j], low_bounds[i + j], high_bounds[i + j])
         i += n_fit_factors
 
+    # ------------------------------------------------------------
+    # Pre-cache parameter names for faster access
+    # ------------------------------------------------------------
+    p1N_names = tuple(f"p1N_{j}" for j in range(n_signals))
+    p1U_names = tuple(f"p1U_{j}" for j in range(n_signals))
+    bI_names = tuple(f"bI_{j}" for j in range(n_signals))
+    p2N_names = tuple(f"p2N_{j}" for j in range(n_signals)) if baseline_native_params[0] else None
+    p2U_names = tuple(f"p2U_{j}" for j in range(n_signals)) if baseline_unfolded_params[0] else None
+    p3N_names = tuple(f"p3N_{j}" for j in range(n_signals)) if baseline_native_params[1] else None
+    p3U_names = tuple(f"p3U_{j}" for j in range(n_signals)) if baseline_unfolded_params[1] else None
+
+    # Pre-allocate arrays
+    p1N_arr = np.empty(n_signals, dtype=float)
+    p1U_arr = np.empty(n_signals, dtype=float)
+    bI_arr = np.empty(n_signals, dtype=float)
+    p2N_arr = np.empty(n_signals, dtype=float) if baseline_native_params[0] else None
+    p2U_arr = np.empty(n_signals, dtype=float) if baseline_unfolded_params[0] else None
+    p3N_arr = np.empty(n_signals, dtype=float) if baseline_native_params[1] else None
+    p3U_arr = np.empty(n_signals, dtype=float) if baseline_unfolded_params[1] else None
+
     def model(pars):
 
         """
@@ -2489,29 +2778,42 @@ def fit_oligomer_unfolding_three_states_many_signals(
             Cp1 = 0.0
             CpTh = 0.0
 
-        p1_Ns = np.array([pars[f"p1N_{j}"].value for j in range(n_signals)])
-        p1_Us = np.array([pars[f"p1U_{j}"].value for j in range(n_signals)])
-        intercepts_intermediates = np.array([pars[f"bI_{j}"].value for j in range(n_signals)])
+        # Extract per-signal parameters efficiently
+        for j in range(n_signals):
+            p1N_arr[j] = pars[p1N_names[j]].value
+            p1U_arr[j] = pars[p1U_names[j]].value
+            bI_arr[j] = pars[bI_names[j]].value
+        p1_Ns = p1N_arr
+        p1_Us = p1U_arr
+        intercepts_intermediates = bI_arr
 
         if baseline_native_params[0]:
-            p2_Ns = np.array([pars[f"p2N_{j}"].value for j in range(n_signals)])
+            for j in range(n_signals):
+                p2N_arr[j] = pars[p2N_names[j]].value
+            p2_Ns = p2N_arr
         else:
-            p2_Ns = np.zeros(n_signals)
+            p2_Ns = 0.0
 
         if baseline_unfolded_params[0]:
-            p2_Us = np.array([pars[f"p2U_{j}"].value for j in range(n_signals)])
+            for j in range(n_signals):
+                p2U_arr[j] = pars[p2U_names[j]].value
+            p2_Us = p2U_arr
         else:
-            p2_Us = np.zeros(n_signals)
+            p2_Us = 0.0
 
         if baseline_native_params[1]:
-            p3_Ns = np.array([pars[f"p3N_{j}"].value for j in range(n_signals)])
+            for j in range(n_signals):
+                p3N_arr[j] = pars[p3N_names[j]].value
+            p3_Ns = p3N_arr
         else:
-            p3_Ns = np.zeros(n_signals)
+            p3_Ns = 0.0
 
         if baseline_unfolded_params[1]:
-            p3_Us = np.array([pars[f"p3U_{j}"].value for j in range(n_signals)])
+            for j in range(n_signals):
+                p3U_arr[j] = pars[p3U_names[j]].value
+            p3_Us = p3U_arr
         else:
-            p3_Us = np.zeros(n_signals)
+            p3_Us = 0.0
 
         if model_scale_factor:
             n_fit_factors = nr_olig - len(scale_factor_exclude_ids)
@@ -2523,26 +2825,26 @@ def fit_oligomer_unfolding_three_states_many_signals(
         signal = []
 
         for i, T in enumerate(list_of_temperatures):
-
-            p1_N = p1_Ns[signal_ids[i]]
-            p1_U = p1_Us[signal_ids[i]]
-            intercepts_intermediate = intercepts_intermediates[signal_ids[i]]
-            p2_N = p2_Ns[signal_ids[i]]
-            p2_U = p2_Us[signal_ids[i]]
-            p3_N = p3_Ns[signal_ids[i]]
-            p3_U = p3_Us[signal_ids[i]]
+            sig_id = signal_ids[i]
+            p1_N = p1_Ns[sig_id]
+            p1_U = p1_Us[sig_id]
+            intercepts_intermediate = intercepts_intermediates[sig_id]
+            p2_N = p2_Ns[sig_id] if baseline_native_params[0] else 0
+            p2_U = p2_Us[sig_id] if baseline_unfolded_params[0] else 0
+            p3_N = p3_Ns[sig_id] if baseline_native_params[1] else 0
+            p3_U = p3_Us[sig_id] if baseline_unfolded_params[1] else 0
 
             c = oligomer_concentrations[i]
 
 
             y = signal_fx(
                 T, c, Tm1, DHm1, Tm2, DHm2,
-                0, p1_N, p2_N, p3_N,
-                0, p1_U, p2_U, p3_U,
+                p1_N, p2_N, p3_N,
+                p1_U, p2_U, p3_U,
                 baseline_native_fx,
                 baseline_unfolded_fx,
                 intercepts_intermediate,
-                Cp1,CpTh,
+                Cp1, CpTh,
             )
 
             scale_factor = 1 if not model_scale_factor else factors[i]
