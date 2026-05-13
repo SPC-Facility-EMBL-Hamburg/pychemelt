@@ -12,7 +12,11 @@ from .utils.math import (
     constant_baseline,
     linear_baseline,
     quadratic_baseline,
-    exponential_baseline
+    exponential_baseline,
+    constant_baseline_only_temp,
+    linear_baseline_only_temp,
+    quadratic_baseline_only_temp,
+    exponential_baseline_only_temp
 )
 
 from .utils.signals import (

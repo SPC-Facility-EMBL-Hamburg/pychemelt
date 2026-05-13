@@ -1,6 +1,9 @@
 """
 This module contains helper functions to obtain the signal, given certain parameters
 Author: Osvaldo Burastero
+
+Note: One could move dT outside the signal functions but the speedup was not significant.
+
 """
 
 from .rates import (

@@ -44,7 +44,9 @@ def eq_constant_thermo(T,DH1,T1,Cp):
         Equilibrium constant at the given temperature
     """
 
-    DG = DH1*(1 - T/T1) - Cp*(T1 - T + T*np.log(T/T1))
+    T_over_T1 = T / T1
+
+    DG = DH1*(1 - T_over_T1) - Cp*(T1 - T + T*np.log(T_over_T1))
     K  = np.exp(-DG / (R_gas * T))
 
     return K
@@ -81,7 +83,9 @@ def eq_constant_termochem(T,D,DHm,Tm,Cp0,m0,m1):
 
     DT  = shift_temperature_K(T)
 
-    DG   = DHm*(1 - T/Tm) + Cp0*(T - Tm - T*np.log(T/Tm)) - D*(m0 + m1*DT)
+    T_over_Tm = T / Tm
+
+    DG   = DHm*(1 - T_over_Tm) + Cp0*(T - Tm - T*np.log(T_over_Tm)) - D*(m0 + m1*DT)
 
     DG_RT = -DG / (R_gas * T)
 

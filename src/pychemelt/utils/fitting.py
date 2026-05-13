@@ -6,7 +6,6 @@ import lmfit
 import numpy as np
 from scipy.optimize     import curve_fit
 from scipy.optimize     import least_squares
-from lmfit import conf_interval
 
 from .math import get_rss, temperature_to_kelvin, temperature_to_celsius
 
