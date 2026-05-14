@@ -20,6 +20,12 @@ from .math import shift_temperature_K
 
 from .constants import R_gas
 
+__all__ = [
+    "eq_constant_thermo",
+    "eq_constant_termochem"
+]
+
+
 def eq_constant_thermo(T,DH1,T1,Cp):
 
     """

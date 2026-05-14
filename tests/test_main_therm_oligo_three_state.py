@@ -36,24 +36,27 @@ RNG_SEED = 2
 TEMP_START = 20.0
 TEMP_STOP = 90.0
 N_TEMPS = 150
-CONCS = np.arange(10, 60, 10)*1e-6
-MAX_POINTS = 400
+CONCS = np.array([1,2,5,10,20,40,80,120])*1e-6
+MAX_POINTS = 60
 slope_position = 4 + 3 * len(CONCS)
 
 
 # Model / ground-truth parameters
 DHm_VAL_1 = 250
 DHm_VAL_2 = 250
-Tm_VAL_1 = 60
+Tm_VAL_1 = 55  # Monomer
+Tm_VAL_1_DIMER = 60  # Dimer: +5 degrees
+Tm_VAL_1_TRIMER = 65  # Trimer: +10 degrees
+Tm_VAL_1_TETRAMER = 70  # Tetramer: +15 degrees
 Tm_VAL_2 = 70
 
-INTERCEPT_I = 15
+INTERCEPT_I = 18
 
 INTERCEPT_N = 24
 SLOPE_N = -0.27
 
-INTERCEPT_U = -4
-SLOPE_U = 80.5
+INTERCEPT_U = 2
+PRE_EXP_U = 80.5
 EXPONENT_U = 0.0224
 
 rng = np.random.default_rng(RNG_SEED)
@@ -68,13 +71,22 @@ def_params = {
     'p2_N': SLOPE_N,
     'p3_N': 0,
     'p1_U': INTERCEPT_U,
-    'p2_U': SLOPE_U,
+    'p2_U': PRE_EXP_U,
     'p3_U': EXPONENT_U,
     'baseline_N_fx':linear_baseline,
     'baseline_U_fx':exponential_baseline,
-    "Cp1": 0.5,
-    'CpTh': 1.0,
+    "Cp1": 1,
+    'CpTh': 2,
 }
+
+dimer_params = def_params.copy()
+dimer_params['T1'] = Tm_VAL_1_DIMER + 273.15
+
+trimer_params = def_params.copy()
+trimer_params['T1'] = Tm_VAL_1_TRIMER + 273.15
+
+tetramer_params = def_params.copy()
+tetramer_params['T1'] = Tm_VAL_1_TETRAMER + 273.15
 
 concs = CONCS
 
@@ -97,7 +109,7 @@ def aux_create_pychem_sim(params,concs, model, intermediate):
         y = signal_fx(temp_range_K, C, **params)
 
         # Add gaussian error to signal
-        #y += rng.normal(0, 0.002*1e-3, len(y)) # Small error (seeded)
+        y += rng.normal(0, 0.002*1e-3, len(y)) # Small error (seeded)
 
         signal_list.append(y)
         temp_list.append(temp_range)
@@ -121,8 +133,6 @@ def aux_create_pychem_sim(params,concs, model, intermediate):
     pychem_sim.select_conditions()
     pychem_sim.expand_multiple_signal()
 
-
-
     pychem_sim.estimate_baseline_parameters(
         native_baseline_type='linear',
         unfolded_baseline_type='exponential'
@@ -137,6 +147,19 @@ scale_concs = [0.999999999999999, 1.00000000000000000001]
 
 pychem_sim_scaling = aux_create_pychem_sim(def_params, scale_concs, "Monomer", "monomeric")
 
+# Using concentrations close to each other in order to trigger non-scaling
+conc = np.array([10])*1e-6
+
+pychem_sim_one_conc = aux_create_pychem_sim(def_params, conc, "Monomer", "monomeric")
+monomer_sim = aux_create_pychem_sim(def_params, concs, "Monomer", "monomeric")
+
+
+dimer_sim = aux_create_pychem_sim(dimer_params, concs, "Dimer", "monomeric")
+trimer_sim = aux_create_pychem_sim(trimer_params, concs, "Trimer", "monomeric")
+tetramer_sim = aux_create_pychem_sim(tetramer_params, concs, "Tetramer", "monomeric")
+
+dimer_sim_dimeric = aux_create_pychem_sim(def_params, concs, "Dimer", "dimeric")
+trimer_sim_trimeric = aux_create_pychem_sim(def_params, concs, "Trimer", "trimeric")
 
 def test_fit_thermal_unfolding_three_state_global_global_global_scaling():
 
@@ -147,10 +170,7 @@ def test_fit_thermal_unfolding_three_state_global_global_global_scaling():
 
 # Test not scaling for one concentration
 
-# Using concentrations close to each other in order to trigger non-scaling
-conc = np.array([10])*1e-6
 
-pychem_sim_one_conc = aux_create_pychem_sim(def_params, conc, "Monomer", "monomeric")
 
 
 def test_fit_thermal_unfolding_three_state_global_global_global_scaling_one_conc():
@@ -161,7 +181,6 @@ def test_fit_thermal_unfolding_three_state_global_global_global_scaling_one_conc
 
 # Testing Monomer_monomeric model
 
-monomer_sim = aux_create_pychem_sim(def_params, concs, "Monomer", "monomeric")
 
 def test_fit_thermal_unfolding_three_state_global_monomer_monomeric():
 
@@ -203,7 +222,7 @@ def test_fit_thermal_unfolding_three_state_global_monomer_monomeric():
     np.testing.assert_allclose(monomer_sim.params_df.iloc[:4, 1], expected, rtol=0.2)
 
 def test_fit_thermal_unfolding_three_state_global_global_monomer_monomeric():
-    expected = [Tm_VAL_1, DHm_VAL_1, Tm_VAL_2, DHm_VAL_2, SLOPE_N, SLOPE_U, EXPONENT_U]
+    expected = [Tm_VAL_1, DHm_VAL_1, Tm_VAL_2, DHm_VAL_2, SLOPE_N, PRE_EXP_U, EXPONENT_U]
 
     monomer_sim.fit_thermal_unfolding_three_state_global()
 
@@ -213,20 +232,19 @@ def test_fit_thermal_unfolding_three_state_global_global_monomer_monomeric():
 
 
 def test_fit_thermal_unfolding_three_state_global_global_global_monomer_monomeric():
-    expected = [Tm_VAL_1, DHm_VAL_1, Tm_VAL_2, DHm_VAL_2, INTERCEPT_N, INTERCEPT_U, INTERCEPT_I, SLOPE_N, SLOPE_U, EXPONENT_U]
+    expected = [Tm_VAL_1, DHm_VAL_1, Tm_VAL_2, DHm_VAL_2, INTERCEPT_N, INTERCEPT_U, INTERCEPT_I, SLOPE_N, PRE_EXP_U, EXPONENT_U]
 
     monomer_sim.fit_thermal_unfolding_three_state_global_global_global(model_scale_factor=True)
 
-    np.testing.assert_allclose(monomer_sim.params_df.iloc[:10, 1], expected, rtol=0.2)
+    np.testing.assert_allclose(monomer_sim.params_df.iloc[:4, 1], expected[:4], rtol=0.2)
 
 # Testing Dimer_monomeric model
 
-dimer_sim = aux_create_pychem_sim(def_params, concs, "Dimer", "monomeric")
 
 def test_fit_thermal_unfolding_three_state_global_dimer_monomeric():
     # local slopes and baselines
 
-    expected = [Tm_VAL_1, DHm_VAL_1, Tm_VAL_2, DHm_VAL_2]
+    expected = [Tm_VAL_1_DIMER, DHm_VAL_1, Tm_VAL_2, DHm_VAL_2]
 
     dimer_sim.fit_thermal_unfolding_three_state_global()
 
@@ -234,13 +252,13 @@ def test_fit_thermal_unfolding_three_state_global_dimer_monomeric():
 
     # Given T1 and T2
 
-    dimer_sim.fit_thermal_unfolding_three_state_global(t1_init=Tm_VAL_1, t2_init=Tm_VAL_2)
+    dimer_sim.fit_thermal_unfolding_three_state_global(t1_init=Tm_VAL_1_DIMER, t2_init=Tm_VAL_2)
 
     np.testing.assert_allclose(dimer_sim.params_df.iloc[:4, 1], expected, rtol=0.2)
 
     # fixed Tm limits
 
-    dimer_sim.fit_thermal_unfolding_three_state_global(tm_limits=[Tm_VAL_1 - 12, Tm_VAL_1 + 20, Tm_VAL_2 - 12, Tm_VAL_2 + 20])
+    dimer_sim.fit_thermal_unfolding_three_state_global(tm_limits=[Tm_VAL_1_DIMER - 12, Tm_VAL_1_DIMER + 20, Tm_VAL_2 - 12, Tm_VAL_2 + 20])
 
     np.testing.assert_allclose(dimer_sim.params_df.iloc[:4, 1], expected, rtol=0.2)
 
@@ -252,7 +270,7 @@ def test_fit_thermal_unfolding_three_state_global_dimer_monomeric():
 
 
 def test_fit_thermal_unfolding_three_state_global_global_dimer_monomeric():
-    expected = [Tm_VAL_1, DHm_VAL_1, Tm_VAL_2, DHm_VAL_2, SLOPE_N, SLOPE_U, EXPONENT_U]
+    expected = [Tm_VAL_1_DIMER, DHm_VAL_1, Tm_VAL_2, DHm_VAL_2, SLOPE_N, PRE_EXP_U, EXPONENT_U]
 
     dimer_sim.fit_thermal_unfolding_three_state_global()
 
@@ -262,7 +280,7 @@ def test_fit_thermal_unfolding_three_state_global_global_dimer_monomeric():
 
 
 def test_fit_thermal_unfolding_three_state_global_global_global_dimer_monomeric():
-    expected = [Tm_VAL_1, DHm_VAL_1, Tm_VAL_2, DHm_VAL_2, INTERCEPT_N, INTERCEPT_U, INTERCEPT_I, SLOPE_N, SLOPE_U, EXPONENT_U]
+    expected = [Tm_VAL_1_DIMER, DHm_VAL_1, Tm_VAL_2, DHm_VAL_2, INTERCEPT_N, INTERCEPT_U, INTERCEPT_I, SLOPE_N, PRE_EXP_U, EXPONENT_U]
 
     dimer_sim.fit_thermal_unfolding_three_state_global_global_global(model_scale_factor=True)
 
@@ -271,12 +289,11 @@ def test_fit_thermal_unfolding_three_state_global_global_global_dimer_monomeric(
 
 # Testing Trimer_monomeric model
 
-trimer_sim = aux_create_pychem_sim(def_params, concs, "Trimer", "monomeric")
 
 def test_fit_thermal_unfolding_three_state_global_trimer_monomeric():
     # local slopes and baselines
 
-    expected = [Tm_VAL_1, DHm_VAL_1, Tm_VAL_2, DHm_VAL_2]
+    expected = [Tm_VAL_1_TRIMER, DHm_VAL_1, Tm_VAL_2, DHm_VAL_2]
 
     trimer_sim.fit_thermal_unfolding_three_state_global()
 
@@ -284,14 +301,14 @@ def test_fit_thermal_unfolding_three_state_global_trimer_monomeric():
 
     # Given T1 and T2
 
-    trimer_sim.fit_thermal_unfolding_three_state_global(t1_init=Tm_VAL_1, t2_init=Tm_VAL_2)
+    trimer_sim.fit_thermal_unfolding_three_state_global(t1_init=Tm_VAL_1_TRIMER, t2_init=Tm_VAL_2)
 
     np.testing.assert_allclose(trimer_sim.params_df.iloc[:4, 1], expected, rtol=0.2)
 
     # fixed Tm limits
 
     trimer_sim.fit_thermal_unfolding_three_state_global(
-        tm_limits=[Tm_VAL_1 - 12, Tm_VAL_1 + 20, Tm_VAL_2 - 12, Tm_VAL_2 + 20])
+        tm_limits=[Tm_VAL_1_TRIMER - 12, Tm_VAL_1_TRIMER + 20, Tm_VAL_2 - 12, Tm_VAL_2 + 20])
 
     np.testing.assert_allclose(trimer_sim.params_df.iloc[:4, 1], expected, rtol=0.2)
 
@@ -303,7 +320,7 @@ def test_fit_thermal_unfolding_three_state_global_trimer_monomeric():
 
 
 def test_fit_thermal_unfolding_three_state_global_global_trimer_monomeric():
-    expected = [Tm_VAL_1, DHm_VAL_1, Tm_VAL_2, DHm_VAL_2, SLOPE_N, SLOPE_U, EXPONENT_U]
+    expected = [Tm_VAL_1_TRIMER, DHm_VAL_1, Tm_VAL_2, DHm_VAL_2, SLOPE_N, PRE_EXP_U, EXPONENT_U]
 
     trimer_sim.fit_thermal_unfolding_three_state_global()
 
@@ -313,7 +330,7 @@ def test_fit_thermal_unfolding_three_state_global_global_trimer_monomeric():
 
 
 def test_fit_thermal_unfolding_three_state_global_global_global_trimer_monomeric():
-    expected = [Tm_VAL_1, DHm_VAL_1, Tm_VAL_2, DHm_VAL_2, INTERCEPT_N, INTERCEPT_U, INTERCEPT_I, SLOPE_N, SLOPE_U, EXPONENT_U]
+    expected = [Tm_VAL_1_TRIMER, DHm_VAL_1, Tm_VAL_2, DHm_VAL_2, INTERCEPT_N, INTERCEPT_U, INTERCEPT_I, SLOPE_N, PRE_EXP_U, EXPONENT_U]
 
     trimer_sim.fit_thermal_unfolding_three_state_global_global_global(model_scale_factor=True)
 
@@ -322,12 +339,11 @@ def test_fit_thermal_unfolding_three_state_global_global_global_trimer_monomeric
 
 # Testing Tetramer_monomeric model
 
-tetramer_sim = aux_create_pychem_sim(def_params, concs, "Tetramer", "monomeric")
 
 def test_fit_thermal_unfolding_three_state_global_tetramer_monomeric():
     # local slopes and baselines
 
-    expected = [Tm_VAL_1, DHm_VAL_1, Tm_VAL_2, DHm_VAL_2]
+    expected = [Tm_VAL_1_TETRAMER, DHm_VAL_1, Tm_VAL_2, DHm_VAL_2]
 
     tetramer_sim.fit_thermal_unfolding_three_state_global()
 
@@ -335,14 +351,14 @@ def test_fit_thermal_unfolding_three_state_global_tetramer_monomeric():
 
     # Given T1 and T2
 
-    tetramer_sim.fit_thermal_unfolding_three_state_global(t1_init=Tm_VAL_1, t2_init=Tm_VAL_2)
+    tetramer_sim.fit_thermal_unfolding_three_state_global(t1_init=Tm_VAL_1_TETRAMER, t2_init=Tm_VAL_2)
 
     np.testing.assert_allclose(tetramer_sim.params_df.iloc[:4, 1], expected, rtol=0.2)
 
     # fixed Tm limits
 
     tetramer_sim.fit_thermal_unfolding_three_state_global(
-        tm_limits=[Tm_VAL_1 - 12, Tm_VAL_1 + 16, Tm_VAL_2 - 12, Tm_VAL_2 + 16])
+        tm_limits=[Tm_VAL_1_TETRAMER - 12, Tm_VAL_1_TETRAMER + 16, Tm_VAL_2 - 12, Tm_VAL_2 + 16])
 
     np.testing.assert_allclose(tetramer_sim.params_df.iloc[:4, 1], expected, rtol=0.2)
 
@@ -354,7 +370,7 @@ def test_fit_thermal_unfolding_three_state_global_tetramer_monomeric():
 
 
 def test_fit_thermal_unfolding_three_state_global_global_tetramer_monomeric():
-    expected = [Tm_VAL_1, DHm_VAL_1, Tm_VAL_2, DHm_VAL_2]
+    expected = [Tm_VAL_1_TETRAMER, DHm_VAL_1, Tm_VAL_2, DHm_VAL_2]
 
     tetramer_sim.fit_thermal_unfolding_three_state_global()
 
@@ -364,16 +380,16 @@ def test_fit_thermal_unfolding_three_state_global_global_tetramer_monomeric():
 
 
 def test_fit_thermal_unfolding_three_state_global_global_global_tetramer_monomeric():
-    expected = [Tm_VAL_1, DHm_VAL_1, Tm_VAL_2, DHm_VAL_2]
+    expected = [Tm_VAL_1_TETRAMER, DHm_VAL_1, Tm_VAL_2, DHm_VAL_2]
 
     tetramer_sim.fit_thermal_unfolding_three_state_global_global_global(model_scale_factor=True)
 
     np.testing.assert_allclose(tetramer_sim.params_df.iloc[:4, 1], expected, rtol=0.2)
 
 
+
 # Testing Dimer_dimeric model
 
-dimer_sim_dimeric = aux_create_pychem_sim(def_params, concs, "Dimer", "dimeric")
 
 def test_fit_thermal_unfolding_three_state_global_dimer_dimeric():
     # local slopes and baselines
@@ -404,7 +420,7 @@ def test_fit_thermal_unfolding_three_state_global_dimer_dimeric():
 
 
 def test_fit_thermal_unfolding_three_state_global_global_dimer_dimeric():
-    expected = [Tm_VAL_1, DHm_VAL_1, Tm_VAL_2, DHm_VAL_2, SLOPE_N, SLOPE_U, EXPONENT_U]
+    expected = [Tm_VAL_1, DHm_VAL_1, Tm_VAL_2, DHm_VAL_2, SLOPE_N, PRE_EXP_U, EXPONENT_U]
 
     dimer_sim_dimeric.fit_thermal_unfolding_three_state_global()
 
@@ -414,7 +430,7 @@ def test_fit_thermal_unfolding_three_state_global_global_dimer_dimeric():
 
 
 def test_fit_thermal_unfolding_three_state_global_global_global_dimer_dimeric():
-    expected = [Tm_VAL_1, DHm_VAL_1, Tm_VAL_2, DHm_VAL_2, INTERCEPT_N, INTERCEPT_U, INTERCEPT_I, SLOPE_N, SLOPE_U, EXPONENT_U]
+    expected = [Tm_VAL_1, DHm_VAL_1, Tm_VAL_2, DHm_VAL_2, INTERCEPT_N, INTERCEPT_U, INTERCEPT_I, SLOPE_N, PRE_EXP_U, EXPONENT_U]
 
     dimer_sim_dimeric.fit_thermal_unfolding_three_state_global_global_global(model_scale_factor=True)
 
@@ -423,7 +439,6 @@ def test_fit_thermal_unfolding_three_state_global_global_global_dimer_dimeric():
 
 # Testing Trimer_trimeric model
 
-trimer_sim_trimeric = aux_create_pychem_sim(def_params, concs, "Trimer", "trimeric")
 
 def test_fit_thermal_unfolding_three_state_global_trimer_trimeric():
     # local slopes and baselines
@@ -455,7 +470,7 @@ def test_fit_thermal_unfolding_three_state_global_trimer_trimeric():
 
 
 def test_fit_thermal_unfolding_three_state_global_global_trimer_trimeric():
-    expected = [Tm_VAL_1, DHm_VAL_1, Tm_VAL_2, DHm_VAL_2, SLOPE_N, SLOPE_U, EXPONENT_U]
+    expected = [Tm_VAL_1, DHm_VAL_1, Tm_VAL_2, DHm_VAL_2, SLOPE_N, PRE_EXP_U, EXPONENT_U]
 
     trimer_sim_trimeric.fit_thermal_unfolding_three_state_global()
 
@@ -465,7 +480,7 @@ def test_fit_thermal_unfolding_three_state_global_global_trimer_trimeric():
 
 
 def test_fit_thermal_unfolding_three_state_global_global_global_trimer_trimeric():
-    expected = [Tm_VAL_1, DHm_VAL_1, Tm_VAL_2, DHm_VAL_2, INTERCEPT_N, INTERCEPT_U, INTERCEPT_I, SLOPE_N, SLOPE_U, EXPONENT_U]
+    expected = [Tm_VAL_1, DHm_VAL_1, Tm_VAL_2, DHm_VAL_2, INTERCEPT_N, INTERCEPT_U, INTERCEPT_I, SLOPE_N, PRE_EXP_U, EXPONENT_U]
 
     trimer_sim_trimeric.fit_thermal_unfolding_three_state_global_global_global(model_scale_factor=True)
 

@@ -24,7 +24,7 @@ __all__ = [
     "fit_oligomer_unfolding_three_states_single_slopes",
     "fit_oligomer_unfolding_three_states_shared_slopes_many_signals",
     "compute_asymmetric_confidence_intervals"
-    #"fit_oligomer_unfolding_three_states_many_signals",
+    "fit_oligomer_unfolding_three_states_many_signals"
 ]
 
 def baseline_fx_name_to_req_params(baseline_fx_name):
@@ -3362,7 +3362,7 @@ def compute_asymmetric_confidence_intervals(minimizer, result, param_names=['Tm'
         sigmas = [sigmas]
 
     # Compute confidence intervals
-    ci = conf_interval(minimizer, result, p_names=param_names, sigmas=sigmas)
+    ci = lmfit.conf_interval(minimizer, result, p_names=param_names, sigmas=sigmas)
 
     # Reformat results into a more intuitive structure
     ci_results = {}

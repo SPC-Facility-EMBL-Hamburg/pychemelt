@@ -4,7 +4,8 @@ import numpy as np
 from pychemelt.utils.math import (
     first_derivative_savgol,
     solve_one_root_quadratic,
-    solve_one_root_depressed_cubic
+    solve_one_root_depressed_cubic,
+    quadratic_baseline_only_temp
 )
 
 
@@ -60,4 +61,12 @@ def test_solve_one_root_depressed_cubic():
     assert solve_one_root_depressed_cubic(2, 2) == pytest.approx(-0.77092, abs=1e-4)
 
 
+def test_quadratic_baseline_only_temp():
 
+    dt = np.array([0, 1, 2, 3])
+    a, b, c = 1, -0.5, 0.1
+
+    expected = a + b*dt + c*dt**2
+    result = quadratic_baseline_only_temp(dt, a, b, c)
+
+    assert np.allclose(result, expected)

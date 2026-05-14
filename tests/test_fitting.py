@@ -2,7 +2,7 @@ import numpy as np
 
 from pychemelt.utils.math import (
     quadratic_baseline,
-    constant_baseline, linear_baseline
+    constant_baseline
 )
 
 from pychemelt.utils.fitting import (
