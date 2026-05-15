@@ -26,7 +26,8 @@ from .utils.processing import (
     re_arrange_params,
     re_arrange_predictions,
     subset_data,
-    transform_to_list
+    transform_to_list,
+    ci_dict_to_summary_df
 )
 
 from .utils.fitting import (
@@ -52,6 +53,7 @@ class Monomer(Sample):
         self.thermodynamic_params_guess = None
         self.nr_den = 0  # Number of denaturant concentrations
         self.oligomeric = False # Flag for oligomer for plotting
+        self.model_scale_factor = False # Flag for model scale factor for fitting
 
     def set_denaturant_concentrations(self, concentrations=None):
 
@@ -366,7 +368,6 @@ class Monomer(Sample):
             List of two values, the lower and upper bounds for the Tm value. If None, bounds set automatically
         cp_value : float, optional
             If provided, the Cp value is fixed to this value, the bounds are ignored
-
         Notes
         -----
         This is a heavy routine that creates/updates many fitting-related attributes, including:
@@ -375,6 +376,9 @@ class Monomer(Sample):
         - predicted_lst_multiple, params_names, params_df, dg_df
         - flags: global_fit_done, fit_m_dep, limited_tm, limited_dh, limited_cp, fixed_cp
         """
+
+        self.global_global_global_fit_done = False  # Reset the flag for the more complex global fit
+        self.global_global_fit_done = False  # Reset the flag for the global fit with shared slopes
 
         # Requires Cp0
         if self.Cp0 <= 0:
@@ -629,6 +633,10 @@ class Monomer(Sample):
         self.create_params_df()
         self.create_dg_df()
 
+        # Add the kwargs and fit_fx to the object for potential later use in leave-one-out analysis
+        self.kwargs_fit = kwargs
+        self.fit_fx = fit_fx
+
         return None
 
     def fit_thermal_unfolding_global_global(self):
@@ -643,6 +651,8 @@ class Monomer(Sample):
         -----
         Updates global fitting attributes and sets `global_global_fit_done` when complete.
         """
+
+        self.global_global_global_fit_done = False  # Reset the flag for the more complex global fit
 
         # Requires global fit done
         if not self.global_fit_done:
@@ -831,6 +841,9 @@ class Monomer(Sample):
         self.create_dg_df()
 
         self.global_global_fit_done = True
+
+        self.kwargs_fit = kwargs
+        self.fit_fx = fit_fx
 
         return None
 
@@ -1157,6 +1170,8 @@ class Monomer(Sample):
         self.create_dg_df()
 
         self.global_global_global_fit_done = True
+        
+        self.model_scale_factor = model_scale_factor
 
         # Obtained the scaled signal too
         if model_scale_factor:
@@ -1177,6 +1192,156 @@ class Monomer(Sample):
 
             self.signal_lst_multiple_scaled = signal_scaled
             self.predicted_lst_multiple_scaled = predicted_scaled
+
+        # Store the kwargs and fit_fx for potential later use in leave-one-out analysis
+        self.kwargs_fit = kwargs
+        self.fit_fx = fit_fx
+
+        return None
+
+    def leave_one_out_cross_validation(self):
+
+        """
+        Perform a leave-one-out cross-validation by fitting the model multiple times, each time leaving out one of the datasets (signal-temperature pairs).
+        """
+
+        kwargs = deepcopy(self.kwargs_fit) # We need a deep copy to avoid problems with modifying the original kwargs in place across iterations
+        fit_fx = self.fit_fx
+        
+        kwargs['initial_parameters'] = self.global_fit_params
+        kwargs['low_bounds']         = self.low_bounds
+        kwargs['high_bounds']        = self.high_bounds
+
+        Tms = []
+        DHs = []
+        Cps = []
+        m0s = []
+
+        n = len(self.signal_lst_expanded)
+
+        for i in range(n):
+
+            kwargs['list_of_temperatures'] = self.temp_lst_expanded[:i] + self.temp_lst_expanded[i+1:]
+            kwargs['list_of_signals'] = self.signal_lst_expanded[:i] + self.signal_lst_expanded[i+1:]
+            kwargs['denaturant_concentrations'] = np.delete(self.denaturant_concentrations_expanded, i)
+
+            # Check if we have a global global global fit with scale factor, and in that case we need to adjust the scale_factor_exclude_ids 
+            if self.model_scale_factor and self.global_global_global_fit_done:
+                
+                # We need to create a new list to allow modifications. Read the original list from the kwargs to avoid modifying it in place across iterations
+                scale_factor_exclude_ids = [x for x in self.kwargs_fit.get('scale_factor_exclude_ids')] 
+
+                for j, sf in enumerate(scale_factor_exclude_ids):
+
+                    # If the scale factor ID is the same as i, we need to remove it
+                    if sf == i:
+                        scale_factor_exclude_ids.pop(j)
+                        break
+
+                    # If the scale factor ID is greater than i, we need to decrease it by 1, because we are removing one dataset before it
+                    elif sf > i:
+                        scale_factor_exclude_ids[j] -= 1
+                    
+                    # If the scale factor ID is less than i, we don't need to do anything
+                    ####
+
+                kwargs['scale_factor_exclude_ids'] = scale_factor_exclude_ids
+            
+            global_fit_params, _, _, _, _ = fit_fx(**kwargs)
+
+            Tm = global_fit_params[0]
+            low_bound_Tm = self.low_bounds[0] # Make sure to compare in Kelvin units
+            high_bound_Tm = self.high_bounds[0] # Make sure to compare in Kelvin units
+
+            tm_is_acceptable = Tm >= low_bound_Tm + 0.5 and Tm <= high_bound_Tm - 0.5
+
+            DH = global_fit_params[1]
+
+            DH_is_acceptable = DH >= self.low_bounds[1] + 5 and DH <= self.high_bounds[1] - 5
+
+            if self.cp_value is None:
+
+                Cp = global_fit_params[2]
+
+                Cp_is_acceptable = Cp >= self.low_bounds[2] + 0.1 and Cp <= self.high_bounds[2] - 0.1
+   
+            id = 2 + (self.cp_value is None)
+            m0 = global_fit_params[id]
+
+            m0_is_acceptable = m0 >= self.low_bounds[id] + 0.1 and m0 <= self.high_bounds[id] - 0.1
+
+            keep_fit = tm_is_acceptable and DH_is_acceptable and m0_is_acceptable and (Cp_is_acceptable if self.cp_value is None else True)
+
+            if not keep_fit:
+                n -= 1
+                continue
+
+            Tms.append(Tm)
+            DHs.append(DH)
+
+            id = 2
+            if self.cp_value is None:
+                Cps.append(Cp)
+                id += 1
+
+            m0s.append(m0) 
+
+        # Create a DataFrame to store the results, with the mean and standard deviation of the parameters across the leave-one-out fits
+
+        params = ['Tm','DH']
+        
+        if self.cp_value is None:
+            params.append('Cp')
+        
+        params.append('m0')
+
+        loo_values = [np.mean(Tms), np.mean(DHs)]
+        if self.cp_value is None:
+            loo_values.append(np.mean(Cps))
+        loo_values.append(np.mean(m0s))
+
+        loo_std = [np.std(Tms), np.std(DHs)]
+        if self.cp_value is None:
+            loo_std.append(np.std(Cps))
+        loo_std.append(np.std(m0s))
+
+        if n == 0:
+            self.loo_df = pd.DataFrame({
+                'Parameter': params,
+                'LOO_Mean': [np.nan for _ in params],
+                'LOO_Std': [np.nan for _ in params],
+                'N fits': [0 for _ in params]
+            })
+            raise ValueError("All leave-one-out fits were rejected based on (thermodynamic) parameter bounds. "
+                             "In other words, the fitted parameters (Tm, DH, Cp, m-value) were too close to the specified bounds in all fits."
+                             "Please check the bounds, model, and the data quality.")
+
+        self.loo_df = pd.DataFrame({
+            'Parameter': params,
+            'Leave_one_out_mean': loo_values,
+            'Leave_one_out_std': loo_std,
+            'N fits': n
+        })
+
+        return None
+
+    def calculate_confidence_intervals(self, percentage=0.95):
+
+        # Find the right amount of param names
+        desired_params = ['Tm', 'DH', 'Cp', 'm0']
+        
+        param_names = [x for x in list(self.result.params.keys()) if any(param in x for param in desired_params)]
+
+        ci_results = compute_asymmetric_confidence_intervals(
+            minimizer = self.minimizer,
+            result = self.result,
+            param_names = param_names,
+            sigmas = [percentage] 
+            # If any of the sigma values is less than 1, that will be interpreted as a probability
+            # https://lmfit.github.io/lmfit-py/confidence.html
+        )
+
+        self.ci_df = ci_dict_to_summary_df(ci_results,percentage=percentage)
 
         return None
 
