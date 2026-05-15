@@ -23,7 +23,8 @@ import pytest
 
 from pychemelt.thermal_oligomer import ThermalOligomer
 
-from pychemelt.utils.math import linear_baseline, exponential_baseline
+from pychemelt.utils.math import linear_baseline_only_temp as linear_baseline
+from pychemelt.utils.math import exponential_baseline_only_temp as exponential_baseline
 
 from pychemelt.utils.signals import (
     map_two_state_model_to_signal_fx
@@ -46,11 +47,9 @@ DHm_INCREASE = 50
 
 INTERCEPT_N = 24
 SLOPE_N = -0.27
-C_N_VAL = 0
 INTERCEPT_U = -4
 SLOPE_U = 80.5
 EXPONENT_U = 0.0224
-C_U_VAL = 0
 
 rng = np.random.default_rng(RNG_SEED)
 
@@ -58,14 +57,12 @@ def_params = {
     'dHm': DHm_VAL,
     'Tm': Tm_VAL+273.15,
     'Cp': CP0_VAL,
-    'p1_N': C_N_VAL,
-    'p2_N': INTERCEPT_N,
-    'p3_N': SLOPE_N,
-    'p4_N': 0,
-    'p1_U': C_U_VAL,
-    'p2_U': INTERCEPT_U,
-    'p3_U': SLOPE_U,
-    'p4_U': EXPONENT_U,
+    'p1_N': INTERCEPT_N,
+    'p2_N': SLOPE_N,
+    'p3_N': 0,
+    'p1_U': INTERCEPT_U,
+    'p2_U': SLOPE_U,
+    'p3_U': EXPONENT_U,
     'baseline_N_fx':linear_baseline,
     'baseline_U_fx':exponential_baseline
 

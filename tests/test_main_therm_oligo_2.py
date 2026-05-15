@@ -11,7 +11,8 @@ from pychemelt.thermal_oligomer import ThermalOligomer
 from pychemelt.utils.signals import (
     map_two_state_model_to_signal_fx
 )
-from pychemelt.utils.math import exponential_baseline, constant_baseline, linear_baseline
+from pychemelt.utils.math import exponential_baseline_only_temp as exponential_baseline
+from pychemelt.utils.math import constant_baseline_only_temp as constant_baseline
 
 # Centralized test constants
 RNG_SEED = 2
@@ -28,15 +29,9 @@ CP0_VAL = 1.8
 
 INTERCEPT_N = 100
 PRE_EXP_N = 1
-C_N_VAL = 0
 ALPHA_N_VAL = 0.1
 
-
 INTERCEPT_U = 110
-PRE_EXP_U = 0
-C_U_VAL = 0
-ALPHA_U_VAL = 0
-
 
 rng = np.random.default_rng(RNG_SEED)
 
@@ -44,14 +39,12 @@ def_params = {
     'dHm': DHm_VAL,
     'Tm': Tm_VAL+273.15,
     'Cp': CP0_VAL,
-    'p1_N': C_N_VAL,
-    'p2_N': INTERCEPT_N,
-    'p3_N': PRE_EXP_N,
-    'p4_N': ALPHA_N_VAL,
-    'p1_U': C_U_VAL,
-    'p2_U': INTERCEPT_U,
-    'p3_U': PRE_EXP_U,
-    'p4_U': ALPHA_U_VAL,
+    'p1_N': INTERCEPT_N,
+    'p2_N': PRE_EXP_N,
+    'p3_N': ALPHA_N_VAL,
+    'p1_U': INTERCEPT_U,
+    'p2_U': 0,
+    'p3_U': 0,
     'baseline_N_fx':exponential_baseline,
     'baseline_U_fx':constant_baseline
 
@@ -78,7 +71,7 @@ def aux_create_pychem_sim(params,concs, model):
         y = signal_fx(temp_range_K, C, **params)
 
         # Add gaussian error to signal
-        y += rng.normal(0, 0.002*1e-3, len(y)) # Small error (seeded)
+        y += rng.normal(0, 0.002*1e-4, len(y)) # Small error (seeded)
 
         signal_list.append(y)
         temp_list.append(temp_range)

@@ -12,8 +12,7 @@ from pychemelt.utils.fitting import (
     fit_oligomer_unfolding_many_signals,
 )
 
-from pychemelt.utils.math import constant_baseline
-
+from pychemelt.utils.math import constant_baseline_only_temp as constant_baseline
 from pychemelt.utils.signals import (
     map_two_state_model_to_signal_fx
 )
@@ -32,9 +31,7 @@ CP0_VAL = 1.8
 
 
 INTERCEPT_N = 50
-C_N_VAL = 0
 INTERCEPT_U = 100
-C_U_VAL = 0
 
 rng = np.random.default_rng(RNG_SEED)
 
@@ -42,14 +39,12 @@ def_params = {
     'dHm': DHm_VAL,
     'Tm': Tm_VAL+273.15,
     'Cp': CP0_VAL,
-    'p1_N': C_N_VAL,
-    'p2_N': INTERCEPT_N,
+    'p1_N': INTERCEPT_N,
+    'p2_N': 0,
     'p3_N': 0,
-    'p4_N': 0,
-    'p1_U': C_U_VAL,
-    'p2_U': INTERCEPT_U,
+    'p1_U': INTERCEPT_U,
+    'p2_U': 0,
     'p3_U': 0,
-    'p4_U': 0,
     'baseline_N_fx':constant_baseline,
     'baseline_U_fx':constant_baseline,
 }
@@ -89,7 +84,7 @@ def test_fit_monomer_unfolding_single_slopes_constant():
         'baseline_unfolded_fx':constant_baseline, 
     }
 
-    global_fit_params, cov, predicted_lst = fit_oligomer_unfolding_single_slopes(
+    global_fit_params, cov, predicted_lst, _, _ = fit_oligomer_unfolding_single_slopes(
         initial_parameters=p0,
         low_bounds=low_bounds,
         high_bounds=high_bounds,
@@ -109,7 +104,7 @@ def test_fit_monomer_unfolding_single_slopes_constant():
     low_bounds_tm.pop(0)
     high_bounds_tm.pop(0)
 
-    global_fit_params, cov, predicted_lst = fit_oligomer_unfolding_single_slopes(
+    global_fit_params, cov, predicted_lst, _, _ = fit_oligomer_unfolding_single_slopes(
         initial_parameters=p0_tm,
         low_bounds=low_bounds_tm,
         high_bounds=high_bounds_tm,
@@ -133,7 +128,7 @@ def test_fit_monomer_unfolding_single_slopes_constant():
     low_bounds_dh.pop(1)
     high_bounds_dh.pop(1)
 
-    global_fit_params, cov, predicted_lst = fit_oligomer_unfolding_single_slopes(
+    global_fit_params, cov, predicted_lst, _, _ = fit_oligomer_unfolding_single_slopes(
         initial_parameters=p0_dh,
         low_bounds=low_bounds_dh,
         high_bounds=high_bounds_dh,
@@ -156,7 +151,7 @@ def test_fit_monomer_unfolding_single_slopes_constant():
     low_bounds_cp.pop(2)
     high_bounds_cp.pop(2)
 
-    global_fit_params, cov, predicted_lst = fit_oligomer_unfolding_single_slopes(
+    global_fit_params, cov, predicted_lst, _, _ = fit_oligomer_unfolding_single_slopes(
         initial_parameters=p0_cp,
         low_bounds=low_bounds_cp,
         high_bounds=high_bounds_cp,
@@ -198,7 +193,7 @@ def test_fit_dimer_unfolding_single_slopes_constant():
         'baseline_unfolded_fx': constant_baseline, 
     }
 
-    global_fit_params, cov, predicted_lst = fit_oligomer_unfolding_single_slopes(
+    global_fit_params, cov, predicted_lst, _, _ = fit_oligomer_unfolding_single_slopes(
         initial_parameters=p0,
         low_bounds=low_bounds,
         high_bounds=high_bounds,
@@ -218,7 +213,7 @@ def test_fit_dimer_unfolding_single_slopes_constant():
     low_bounds_tm.pop(0)
     high_bounds_tm.pop(0)
 
-    global_fit_params, cov, predicted_lst = fit_oligomer_unfolding_single_slopes(
+    global_fit_params, cov, predicted_lst, _, _ = fit_oligomer_unfolding_single_slopes(
         initial_parameters=p0_tm,
         low_bounds=low_bounds_tm,
         high_bounds=high_bounds_tm,
@@ -241,7 +236,7 @@ def test_fit_dimer_unfolding_single_slopes_constant():
     low_bounds_dh.pop(1)
     high_bounds_dh.pop(1)
 
-    global_fit_params, cov, predicted_lst = fit_oligomer_unfolding_single_slopes(
+    global_fit_params, cov, predicted_lst, _, _ = fit_oligomer_unfolding_single_slopes(
         initial_parameters=p0_dh,
         low_bounds=low_bounds_dh,
         high_bounds=high_bounds_dh,
@@ -264,7 +259,7 @@ def test_fit_dimer_unfolding_single_slopes_constant():
     low_bounds_cp.pop(2)
     high_bounds_cp.pop(2)
 
-    global_fit_params, cov, predicted_lst = fit_oligomer_unfolding_single_slopes(
+    global_fit_params, cov, predicted_lst, _, _ = fit_oligomer_unfolding_single_slopes(
         initial_parameters=p0_cp,
         low_bounds=low_bounds_cp,
         high_bounds=high_bounds_cp,
@@ -307,7 +302,7 @@ def test_fit_trimer_unfolding_single_slopes_constant():
         'baseline_unfolded_fx': constant_baseline, 
     }
 
-    global_fit_params, cov, predicted_lst = fit_oligomer_unfolding_single_slopes(
+    global_fit_params, cov, predicted_lst, _, _ = fit_oligomer_unfolding_single_slopes(
         initial_parameters=p0,
         low_bounds=low_bounds,
         high_bounds=high_bounds,
@@ -327,7 +322,7 @@ def test_fit_trimer_unfolding_single_slopes_constant():
     low_bounds_tm.pop(0)
     high_bounds_tm.pop(0)
 
-    global_fit_params, cov, predicted_lst = fit_oligomer_unfolding_single_slopes(
+    global_fit_params, cov, predicted_lst, _, _ = fit_oligomer_unfolding_single_slopes(
         initial_parameters=p0_tm,
         low_bounds=low_bounds_tm,
         high_bounds=high_bounds_tm,
@@ -350,7 +345,7 @@ def test_fit_trimer_unfolding_single_slopes_constant():
     low_bounds_dh.pop(1)
     high_bounds_dh.pop(1)
 
-    global_fit_params, cov, predicted_lst = fit_oligomer_unfolding_single_slopes(
+    global_fit_params, cov, predicted_lst, _, _ = fit_oligomer_unfolding_single_slopes(
         initial_parameters=p0_dh,
         low_bounds=low_bounds_dh,
         high_bounds=high_bounds_dh,
@@ -373,7 +368,7 @@ def test_fit_trimer_unfolding_single_slopes_constant():
     low_bounds_cp.pop(2)
     high_bounds_cp.pop(2)
 
-    global_fit_params, cov, predicted_lst = fit_oligomer_unfolding_single_slopes(
+    global_fit_params, cov, predicted_lst, _, _ = fit_oligomer_unfolding_single_slopes(
         initial_parameters=p0_cp,
         low_bounds=low_bounds_cp,
         high_bounds=high_bounds_cp,
@@ -415,7 +410,7 @@ def test_fit_tetramer_unfolding_single_slopes_constant():
         'baseline_unfolded_fx': constant_baseline, 
     }
 
-    global_fit_params, cov, predicted_lst = fit_oligomer_unfolding_single_slopes(
+    global_fit_params, cov, predicted_lst, _, _ = fit_oligomer_unfolding_single_slopes(
         initial_parameters=p0,
         low_bounds=low_bounds,
         high_bounds=high_bounds,
@@ -435,7 +430,7 @@ def test_fit_tetramer_unfolding_single_slopes_constant():
     low_bounds_tm.pop(0)
     high_bounds_tm.pop(0)
 
-    global_fit_params, cov, predicted_lst = fit_oligomer_unfolding_single_slopes(
+    global_fit_params, cov, predicted_lst, _, _ = fit_oligomer_unfolding_single_slopes(
         initial_parameters=p0_tm,
         low_bounds=low_bounds_tm,
         high_bounds=high_bounds_tm,
@@ -458,7 +453,7 @@ def test_fit_tetramer_unfolding_single_slopes_constant():
     low_bounds_dh.pop(1)
     high_bounds_dh.pop(1)
 
-    global_fit_params, cov, predicted_lst = fit_oligomer_unfolding_single_slopes(
+    global_fit_params, cov, predicted_lst, _, _ = fit_oligomer_unfolding_single_slopes(
         initial_parameters=p0_dh,
         low_bounds=low_bounds_dh,
         high_bounds=high_bounds_dh,
@@ -481,7 +476,7 @@ def test_fit_tetramer_unfolding_single_slopes_constant():
     low_bounds_cp.pop(2)
     high_bounds_cp.pop(2)
 
-    global_fit_params, cov, predicted_lst = fit_oligomer_unfolding_single_slopes(
+    global_fit_params, cov, predicted_lst, _, _ = fit_oligomer_unfolding_single_slopes(
         initial_parameters=p0_cp,
         low_bounds=low_bounds_cp,
         high_bounds=high_bounds_cp,
@@ -527,7 +522,7 @@ def test_fit_monomer_unfolding_shared_slopes_many_signals_constant():
         'baseline_unfolded_fx':constant_baseline, 
     }
 
-    global_fit_params, cov, predicted_lst = fit_oligomer_unfolding_shared_slopes_many_signals(
+    global_fit_params, cov, predicted_lst, _, _ = fit_oligomer_unfolding_shared_slopes_many_signals(
         initial_parameters=p0,
         low_bounds=low_bounds,
         high_bounds=high_bounds,
@@ -547,7 +542,7 @@ def test_fit_monomer_unfolding_shared_slopes_many_signals_constant():
     low_bounds_tm.pop(0)
     high_bounds_tm.pop(0)
 
-    global_fit_params, cov, predicted_lst = fit_oligomer_unfolding_shared_slopes_many_signals(
+    global_fit_params, cov, predicted_lst, _, _ = fit_oligomer_unfolding_shared_slopes_many_signals(
         initial_parameters=p0_tm,
         low_bounds=low_bounds_tm,
         high_bounds=high_bounds_tm,
@@ -590,7 +585,7 @@ def test_fit_dimer_unfolding_shared_slopes_many_signals_constant():
         'baseline_unfolded_fx': constant_baseline, 
     }
 
-    global_fit_params, cov, predicted_lst = fit_oligomer_unfolding_shared_slopes_many_signals(
+    global_fit_params, cov, predicted_lst, _, _ = fit_oligomer_unfolding_shared_slopes_many_signals(
         initial_parameters=p0,
         low_bounds=low_bounds,
         high_bounds=high_bounds,
@@ -610,7 +605,7 @@ def test_fit_dimer_unfolding_shared_slopes_many_signals_constant():
     low_bounds_tm.pop(0)
     high_bounds_tm.pop(0)
 
-    global_fit_params, cov, predicted_lst = fit_oligomer_unfolding_shared_slopes_many_signals(
+    global_fit_params, cov, predicted_lst, _, _ = fit_oligomer_unfolding_shared_slopes_many_signals(
         initial_parameters=p0_tm,
         low_bounds=low_bounds_tm,
         high_bounds=high_bounds_tm,
@@ -654,7 +649,7 @@ def test_fit_trimer_unfolding_shared_slopes_many_signals_constant():
         'baseline_unfolded_fx': constant_baseline, 
     }
 
-    global_fit_params, cov, predicted_lst = fit_oligomer_unfolding_shared_slopes_many_signals(
+    global_fit_params, cov, predicted_lst, _, _ = fit_oligomer_unfolding_shared_slopes_many_signals(
         initial_parameters=p0,
         low_bounds=low_bounds,
         high_bounds=high_bounds,
@@ -674,7 +669,7 @@ def test_fit_trimer_unfolding_shared_slopes_many_signals_constant():
     low_bounds_tm.pop(0)
     high_bounds_tm.pop(0)
 
-    global_fit_params, cov, predicted_lst = fit_oligomer_unfolding_shared_slopes_many_signals(
+    global_fit_params, cov, predicted_lst, _, _ = fit_oligomer_unfolding_shared_slopes_many_signals(
         initial_parameters=p0_tm,
         low_bounds=low_bounds_tm,
         high_bounds=high_bounds_tm,
@@ -718,7 +713,7 @@ def test_fit_tetramer_unfolding_shared_slopes_many_signals_constant():
         'baseline_unfolded_fx': constant_baseline, 
     }
 
-    global_fit_params, cov, predicted_lst = fit_oligomer_unfolding_shared_slopes_many_signals(
+    global_fit_params, cov, predicted_lst, _, _ = fit_oligomer_unfolding_shared_slopes_many_signals(
         initial_parameters=p0,
         low_bounds=low_bounds,
         high_bounds=high_bounds,
@@ -738,7 +733,7 @@ def test_fit_tetramer_unfolding_shared_slopes_many_signals_constant():
     low_bounds_tm.pop(0)
     high_bounds_tm.pop(0)
 
-    global_fit_params, cov, predicted_lst = fit_oligomer_unfolding_shared_slopes_many_signals(
+    global_fit_params, cov, predicted_lst, _, _ = fit_oligomer_unfolding_shared_slopes_many_signals(
         initial_parameters=p0_tm,
         low_bounds=low_bounds_tm,
         high_bounds=high_bounds_tm,
@@ -784,7 +779,7 @@ def test_fit_monomer_unfolding_many_signals_constant():
         'baseline_unfolded_fx': constant_baseline,
     }
 
-    global_fit_params, cov, predicted_lst = fit_oligomer_unfolding_many_signals(
+    global_fit_params, cov, predicted_lst, _, _ = fit_oligomer_unfolding_many_signals(
         initial_parameters=p0,
         low_bounds=low_bounds,
         high_bounds=high_bounds,
@@ -807,7 +802,7 @@ def test_fit_monomer_unfolding_many_signals_constant():
 
     scale_factor_exclude_ids = [len(signal_list) - 1]
 
-    global_fit_params, cov, predicted_lst = fit_oligomer_unfolding_many_signals(
+    global_fit_params, cov, predicted_lst, _, _ = fit_oligomer_unfolding_many_signals(
         initial_parameters=p0,
         low_bounds=low_bounds,
         high_bounds=high_bounds,
@@ -826,7 +821,7 @@ def test_fit_monomer_unfolding_many_signals_constant():
     low_bounds = [TEMP_START, TEMP_START] + [-1e2] * (2 * 4)
     high_bounds = [TEMP_STOP, DHm_VAL+100] + [1e3] * (2 * 4)
 
-    global_fit_params, cov, predicted_lst = fit_oligomer_unfolding_many_signals(
+    global_fit_params, cov, predicted_lst, _, _ = fit_oligomer_unfolding_many_signals(
         initial_parameters=p0,
         low_bounds=low_bounds,
         high_bounds=high_bounds,
@@ -867,7 +862,7 @@ def test_fit_dimer_unfolding_many_signals_constant():
         'baseline_unfolded_fx': constant_baseline,
     }
 
-    global_fit_params, cov, predicted_lst = fit_oligomer_unfolding_many_signals(
+    global_fit_params, cov, predicted_lst, _, _ = fit_oligomer_unfolding_many_signals(
         initial_parameters=p0,
         low_bounds=low_bounds,
         high_bounds=high_bounds,
@@ -890,7 +885,7 @@ def test_fit_dimer_unfolding_many_signals_constant():
 
     scale_factor_exclude_ids = [len(signal_list) - 1]
 
-    global_fit_params, cov, predicted_lst = fit_oligomer_unfolding_many_signals(
+    global_fit_params, cov, predicted_lst, _, _ = fit_oligomer_unfolding_many_signals(
         initial_parameters=p0,
         low_bounds=low_bounds,
         high_bounds=high_bounds,
@@ -909,7 +904,7 @@ def test_fit_dimer_unfolding_many_signals_constant():
     low_bounds = [TEMP_START, TEMP_START] + [-1e2] * (2 * 4)
     high_bounds = [TEMP_STOP, DHm_VAL+100] + [1e3] * (2 * 4)
 
-    global_fit_params, cov, predicted_lst = fit_oligomer_unfolding_many_signals(
+    global_fit_params, cov, predicted_lst, _, _ = fit_oligomer_unfolding_many_signals(
         initial_parameters=p0,
         low_bounds=low_bounds,
         high_bounds=high_bounds,
@@ -950,7 +945,7 @@ def test_fit_trimer_unfolding_many_signals_constant():
         'baseline_unfolded_fx': constant_baseline,
     }
 
-    global_fit_params, cov, predicted_lst = fit_oligomer_unfolding_many_signals(
+    global_fit_params, cov, predicted_lst, _, _ = fit_oligomer_unfolding_many_signals(
         initial_parameters=p0,
         low_bounds=low_bounds,
         high_bounds=high_bounds,
@@ -973,7 +968,7 @@ def test_fit_trimer_unfolding_many_signals_constant():
 
     scale_factor_exclude_ids = [len(signal_list) - 1]
 
-    global_fit_params, cov, predicted_lst = fit_oligomer_unfolding_many_signals(
+    global_fit_params, cov, predicted_lst, _, _ = fit_oligomer_unfolding_many_signals(
         initial_parameters=p0,
         low_bounds=low_bounds,
         high_bounds=high_bounds,
@@ -992,7 +987,7 @@ def test_fit_trimer_unfolding_many_signals_constant():
     low_bounds = [TEMP_START, TEMP_START] + [-1e2] * (2 * 4)
     high_bounds = [TEMP_STOP, DHm_VAL+100] + [1e3] * (2 * 4)
 
-    global_fit_params, cov, predicted_lst = fit_oligomer_unfolding_many_signals(
+    global_fit_params, cov, predicted_lst, _, _ = fit_oligomer_unfolding_many_signals(
         initial_parameters=p0,
         low_bounds=low_bounds,
         high_bounds=high_bounds,
@@ -1032,7 +1027,7 @@ def test_fit_tetramer_unfolding_many_signals_constant():
         'baseline_unfolded_fx': constant_baseline,
     }
 
-    global_fit_params, cov, predicted_lst = fit_oligomer_unfolding_many_signals(
+    global_fit_params, cov, predicted_lst, _, _ = fit_oligomer_unfolding_many_signals(
         initial_parameters=p0,
         low_bounds=low_bounds,
         high_bounds=high_bounds,
@@ -1055,7 +1050,7 @@ def test_fit_tetramer_unfolding_many_signals_constant():
 
     scale_factor_exclude_ids = [len(signal_list) - 1]
 
-    global_fit_params, cov, predicted_lst = fit_oligomer_unfolding_many_signals(
+    global_fit_params, cov, predicted_lst, _, _ = fit_oligomer_unfolding_many_signals(
         initial_parameters=p0,
         low_bounds=low_bounds,
         high_bounds=high_bounds,
@@ -1074,7 +1069,7 @@ def test_fit_tetramer_unfolding_many_signals_constant():
     low_bounds = [TEMP_START, TEMP_START] + [-1e2] * (2 * 4)
     high_bounds = [TEMP_STOP, DHm_VAL+100] + [1e3] * (2 * 4)
 
-    global_fit_params, cov, predicted_lst = fit_oligomer_unfolding_many_signals(
+    global_fit_params, cov, predicted_lst, _, _ = fit_oligomer_unfolding_many_signals(
         initial_parameters=p0,
         low_bounds=low_bounds,
         high_bounds=high_bounds,

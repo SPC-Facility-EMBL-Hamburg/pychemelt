@@ -13,7 +13,7 @@ from pychemelt.utils.fitting import (
     evaluate_need_to_refit_three_state
 )
 
-from pychemelt.utils.math import constant_baseline
+from pychemelt.utils.math import constant_baseline_only_temp as constant_baseline
 
 from pychemelt.utils.signals import (
     map_three_state_model_to_signal_fx
@@ -33,17 +33,8 @@ Tm_VAL_1 = 50
 Tm_VAL_2 = 70
 
 INTERCEPT_I = 100
-
 INTERCEPT_N = 80
-PRE_EXP_N = 0
-C_N_VAL = 0
-ALPHA_N_VAL = 0
-
-
 INTERCEPT_U = 110
-PRE_EXP_U = 0
-C_U_VAL = 0
-ALPHA_U_VAL = 0
 
 rng = np.random.default_rng(RNG_SEED)
 
@@ -53,14 +44,12 @@ def_params = {
     'T1': Tm_VAL_1+273.15,
     'T2': Tm_VAL_2+273.15,
     'bI': INTERCEPT_I,
-    'p1_N': C_N_VAL,
-    'p2_N': INTERCEPT_N,
-    'p3_N': PRE_EXP_N,
-    'p4_N': ALPHA_N_VAL,
-    'p1_U': C_U_VAL,
-    'p2_U': INTERCEPT_U,
-    'p3_U': PRE_EXP_U,
-    'p4_U': ALPHA_U_VAL,
+    'p1_N': INTERCEPT_N,
+    'p2_N': 0,
+    'p3_N': 0,
+    'p1_U': INTERCEPT_U,
+    'p2_U': 0,
+    'p3_U': 0,
     'baseline_N_fx':constant_baseline,
     'baseline_U_fx':constant_baseline,
     "Cp1": 0.5,
@@ -102,7 +91,7 @@ def test_fit_monomer_unfolding_three_states_single_slopes_constant():
         'baseline_unfolded_fx':constant_baseline,
     }
 
-    global_fit_params, cov, predicted_lst = fit_oligomer_unfolding_three_states_single_slopes(
+    global_fit_params, cov, predicted_lst, _, _ = fit_oligomer_unfolding_three_states_single_slopes(
         initial_parameters=p0,
         low_bounds=low_bounds,
         high_bounds=high_bounds,
@@ -121,7 +110,7 @@ def test_fit_monomer_unfolding_three_states_single_slopes_constant():
     
     
     
-    global_fit_params, cov, predicted_lst = fit_oligomer_unfolding_three_states_single_slopes(
+    global_fit_params, cov, predicted_lst, _, _ = fit_oligomer_unfolding_three_states_single_slopes(
         initial_parameters=p0_tm,
         low_bounds=low_bounds_tm,
         high_bounds=high_bounds_tm,
@@ -143,7 +132,7 @@ def test_fit_monomer_unfolding_three_states_single_slopes_constant():
     high_bounds_dh = high_bounds.copy()
 
 
-    global_fit_params, cov, predicted_lst = fit_oligomer_unfolding_three_states_single_slopes(
+    global_fit_params, cov, predicted_lst, _, _ = fit_oligomer_unfolding_three_states_single_slopes(
         initial_parameters=p0_dh,
         low_bounds=low_bounds_dh,
         high_bounds=high_bounds_dh,
@@ -187,7 +176,7 @@ def test_fit_dimer_unfolding_three_states_single_slopes_constant():
         'baseline_unfolded_fx': constant_baseline,
     }
 
-    global_fit_params, cov, predicted_lst = fit_oligomer_unfolding_three_states_single_slopes(
+    global_fit_params, cov, predicted_lst, _, _ = fit_oligomer_unfolding_three_states_single_slopes(
         initial_parameters=p0,
         low_bounds=low_bounds,
         high_bounds=high_bounds,
@@ -205,7 +194,7 @@ def test_fit_dimer_unfolding_three_states_single_slopes_constant():
 
 
 
-    global_fit_params, cov, predicted_lst = fit_oligomer_unfolding_three_states_single_slopes(
+    global_fit_params, cov, predicted_lst, _, _ = fit_oligomer_unfolding_three_states_single_slopes(
         initial_parameters=p0_tm,
         low_bounds=low_bounds_tm,
         high_bounds=high_bounds_tm,
@@ -227,7 +216,7 @@ def test_fit_dimer_unfolding_three_states_single_slopes_constant():
 
 
 
-    global_fit_params, cov, predicted_lst = fit_oligomer_unfolding_three_states_single_slopes(
+    global_fit_params, cov, predicted_lst, _, _ = fit_oligomer_unfolding_three_states_single_slopes(
         initial_parameters=p0_dh,
         low_bounds=low_bounds_dh,
         high_bounds=high_bounds_dh,
@@ -273,7 +262,7 @@ def test_fit_trimer_unfolding_three_states_single_slopes_constant():
         'baseline_unfolded_fx': constant_baseline,
     }
 
-    global_fit_params, cov, predicted_lst = fit_oligomer_unfolding_three_states_single_slopes(
+    global_fit_params, cov, predicted_lst, _, _ = fit_oligomer_unfolding_three_states_single_slopes(
         initial_parameters=p0,
         low_bounds=low_bounds,
         high_bounds=high_bounds,
@@ -291,7 +280,7 @@ def test_fit_trimer_unfolding_three_states_single_slopes_constant():
 
 
 
-    global_fit_params, cov, predicted_lst = fit_oligomer_unfolding_three_states_single_slopes(
+    global_fit_params, cov, predicted_lst, _, _ = fit_oligomer_unfolding_three_states_single_slopes(
         initial_parameters=p0_tm,
         low_bounds=low_bounds_tm,
         high_bounds=high_bounds_tm,
@@ -313,7 +302,7 @@ def test_fit_trimer_unfolding_three_states_single_slopes_constant():
 
 
 
-    global_fit_params, cov, predicted_lst = fit_oligomer_unfolding_three_states_single_slopes(
+    global_fit_params, cov, predicted_lst, _, _ = fit_oligomer_unfolding_three_states_single_slopes(
         initial_parameters=p0_dh,
         low_bounds=low_bounds_dh,
         high_bounds=high_bounds_dh,
@@ -358,7 +347,7 @@ def test_fit_tetramer_unfolding_three_states_single_slopes_constant():
         'baseline_unfolded_fx': constant_baseline,
     }
 
-    global_fit_params, cov, predicted_lst = fit_oligomer_unfolding_three_states_single_slopes(
+    global_fit_params, cov, predicted_lst, _, _ = fit_oligomer_unfolding_three_states_single_slopes(
         initial_parameters=p0,
         low_bounds=low_bounds,
         high_bounds=high_bounds,
@@ -376,7 +365,7 @@ def test_fit_tetramer_unfolding_three_states_single_slopes_constant():
 
 
 
-    global_fit_params, cov, predicted_lst = fit_oligomer_unfolding_three_states_single_slopes(
+    global_fit_params, cov, predicted_lst, _, _ = fit_oligomer_unfolding_three_states_single_slopes(
         initial_parameters=p0_tm,
         low_bounds=low_bounds_tm,
         high_bounds=high_bounds_tm,
@@ -397,7 +386,7 @@ def test_fit_tetramer_unfolding_three_states_single_slopes_constant():
     high_bounds_dh = high_bounds.copy()
 
 
-    global_fit_params, cov, predicted_lst = fit_oligomer_unfolding_three_states_single_slopes(
+    global_fit_params, cov, predicted_lst, _, _ = fit_oligomer_unfolding_three_states_single_slopes(
         initial_parameters=p0_dh,
         low_bounds=low_bounds_dh,
         high_bounds=high_bounds_dh,
@@ -441,7 +430,7 @@ def test_fit_dimer_dimeric_unfolding_three_states_single_slopes_constant():
         'baseline_unfolded_fx': constant_baseline,
     }
 
-    global_fit_params, cov, predicted_lst = fit_oligomer_unfolding_three_states_single_slopes(
+    global_fit_params, cov, predicted_lst, _, _ = fit_oligomer_unfolding_three_states_single_slopes(
         initial_parameters=p0,
         low_bounds=low_bounds,
         high_bounds=high_bounds,
@@ -457,7 +446,7 @@ def test_fit_dimer_dimeric_unfolding_three_states_single_slopes_constant():
     low_bounds_tm = low_bounds.copy()
     high_bounds_tm = high_bounds.copy()
 
-    global_fit_params, cov, predicted_lst = fit_oligomer_unfolding_three_states_single_slopes(
+    global_fit_params, cov, predicted_lst, _, _ = fit_oligomer_unfolding_three_states_single_slopes(
         initial_parameters=p0_tm,
         low_bounds=low_bounds_tm,
         high_bounds=high_bounds_tm,
@@ -477,7 +466,7 @@ def test_fit_dimer_dimeric_unfolding_three_states_single_slopes_constant():
     low_bounds_dh = low_bounds.copy()
     high_bounds_dh = high_bounds.copy()
 
-    global_fit_params, cov, predicted_lst = fit_oligomer_unfolding_three_states_single_slopes(
+    global_fit_params, cov, predicted_lst, _, _ = fit_oligomer_unfolding_three_states_single_slopes(
         initial_parameters=p0_dh,
         low_bounds=low_bounds_dh,
         high_bounds=high_bounds_dh,
@@ -521,7 +510,7 @@ def test_fit_trimer_trimeric_unfolding_three_states_single_slopes_constant():
         'baseline_unfolded_fx': constant_baseline,
     }
 
-    global_fit_params, cov, predicted_lst = fit_oligomer_unfolding_three_states_single_slopes(
+    global_fit_params, cov, predicted_lst, _, _ = fit_oligomer_unfolding_three_states_single_slopes(
         initial_parameters=p0,
         low_bounds=low_bounds,
         high_bounds=high_bounds,
@@ -537,7 +526,7 @@ def test_fit_trimer_trimeric_unfolding_three_states_single_slopes_constant():
     low_bounds_tm = low_bounds.copy()
     high_bounds_tm = high_bounds.copy()
 
-    global_fit_params, cov, predicted_lst = fit_oligomer_unfolding_three_states_single_slopes(
+    global_fit_params, cov, predicted_lst, _, _ = fit_oligomer_unfolding_three_states_single_slopes(
         initial_parameters=p0_tm,
         low_bounds=low_bounds_tm,
         high_bounds=high_bounds_tm,
@@ -557,7 +546,7 @@ def test_fit_trimer_trimeric_unfolding_three_states_single_slopes_constant():
     low_bounds_dh = low_bounds.copy()
     high_bounds_dh = high_bounds.copy()
 
-    global_fit_params, cov, predicted_lst = fit_oligomer_unfolding_three_states_single_slopes(
+    global_fit_params, cov, predicted_lst, _, _ = fit_oligomer_unfolding_three_states_single_slopes(
         initial_parameters=p0_dh,
         low_bounds=low_bounds_dh,
         high_bounds=high_bounds_dh,
@@ -604,7 +593,7 @@ def test_fit_monomer_unfolding_three_states_shared_slopes_many_signals_constant(
         'baseline_unfolded_fx':constant_baseline,
     }
 
-    global_fit_params, cov, predicted_lst = fit_oligomer_unfolding_three_states_shared_slopes_many_signals(
+    global_fit_params, cov, predicted_lst, _, _ = fit_oligomer_unfolding_three_states_shared_slopes_many_signals(
         initial_parameters=p0,
         low_bounds=low_bounds,
         high_bounds=high_bounds,
@@ -622,7 +611,7 @@ def test_fit_monomer_unfolding_three_states_shared_slopes_many_signals_constant(
 
 
 
-    global_fit_params, cov, predicted_lst = fit_oligomer_unfolding_three_states_shared_slopes_many_signals(
+    global_fit_params, cov, predicted_lst, _, _ = fit_oligomer_unfolding_three_states_shared_slopes_many_signals(
         initial_parameters=p0_tm,
         low_bounds=low_bounds_tm,
         high_bounds=high_bounds_tm,
@@ -642,7 +631,7 @@ def test_fit_monomer_unfolding_three_states_shared_slopes_many_signals_constant(
     low_bounds_dh = low_bounds.copy()
     high_bounds_dh = high_bounds.copy()
 
-    global_fit_params, cov, predicted_lst = fit_oligomer_unfolding_three_states_shared_slopes_many_signals(
+    global_fit_params, cov, predicted_lst, _, _ = fit_oligomer_unfolding_three_states_shared_slopes_many_signals(
         initial_parameters=p0_dh,
         low_bounds=low_bounds_dh,
         high_bounds=high_bounds_dh,
@@ -686,7 +675,7 @@ def test_fit_dimer_unfolding_three_states_shared_slopes_many_signals_constant():
         'baseline_unfolded_fx': constant_baseline,
     }
 
-    global_fit_params, cov, predicted_lst = fit_oligomer_unfolding_three_states_shared_slopes_many_signals(
+    global_fit_params, cov, predicted_lst, _, _ = fit_oligomer_unfolding_three_states_shared_slopes_many_signals(
         initial_parameters=p0,
         low_bounds=low_bounds,
         high_bounds=high_bounds,
@@ -704,7 +693,7 @@ def test_fit_dimer_unfolding_three_states_shared_slopes_many_signals_constant():
 
 
 
-    global_fit_params, cov, predicted_lst = fit_oligomer_unfolding_three_states_shared_slopes_many_signals(
+    global_fit_params, cov, predicted_lst, _, _ = fit_oligomer_unfolding_three_states_shared_slopes_many_signals(
         initial_parameters=p0_tm,
         low_bounds=low_bounds_tm,
         high_bounds=high_bounds_tm,
@@ -724,7 +713,7 @@ def test_fit_dimer_unfolding_three_states_shared_slopes_many_signals_constant():
     low_bounds_dh = low_bounds.copy()
     high_bounds_dh = high_bounds.copy()
 
-    global_fit_params, cov, predicted_lst = fit_oligomer_unfolding_three_states_shared_slopes_many_signals(
+    global_fit_params, cov, predicted_lst, _, _ = fit_oligomer_unfolding_three_states_shared_slopes_many_signals(
         initial_parameters=p0_dh,
         low_bounds=low_bounds_dh,
         high_bounds=high_bounds_dh,
@@ -768,7 +757,7 @@ def test_fit_trimer_unfolding_three_states_shared_slopes_many_signals_constant()
         'baseline_unfolded_fx': constant_baseline,
     }
 
-    global_fit_params, cov, predicted_lst = fit_oligomer_unfolding_three_states_shared_slopes_many_signals(
+    global_fit_params, cov, predicted_lst, _, _ = fit_oligomer_unfolding_three_states_shared_slopes_many_signals(
         initial_parameters=p0,
         low_bounds=low_bounds,
         high_bounds=high_bounds,
@@ -786,7 +775,7 @@ def test_fit_trimer_unfolding_three_states_shared_slopes_many_signals_constant()
 
 
 
-    global_fit_params, cov, predicted_lst = fit_oligomer_unfolding_three_states_shared_slopes_many_signals(
+    global_fit_params, cov, predicted_lst, _, _ = fit_oligomer_unfolding_three_states_shared_slopes_many_signals(
         initial_parameters=p0_tm,
         low_bounds=low_bounds_tm,
         high_bounds=high_bounds_tm,
@@ -806,7 +795,7 @@ def test_fit_trimer_unfolding_three_states_shared_slopes_many_signals_constant()
     low_bounds_dh = low_bounds.copy()
     high_bounds_dh = high_bounds.copy()
 
-    global_fit_params, cov, predicted_lst = fit_oligomer_unfolding_three_states_shared_slopes_many_signals(
+    global_fit_params, cov, predicted_lst, _, _ = fit_oligomer_unfolding_three_states_shared_slopes_many_signals(
         initial_parameters=p0_dh,
         low_bounds=low_bounds_dh,
         high_bounds=high_bounds_dh,
@@ -850,7 +839,7 @@ def test_fit_tetramer_unfolding_three_states_shared_slopes_many_signals_constant
         'baseline_unfolded_fx': constant_baseline,
     }
 
-    global_fit_params, cov, predicted_lst = fit_oligomer_unfolding_three_states_shared_slopes_many_signals(
+    global_fit_params, cov, predicted_lst, _, _ = fit_oligomer_unfolding_three_states_shared_slopes_many_signals(
         initial_parameters=p0,
         low_bounds=low_bounds,
         high_bounds=high_bounds,
@@ -868,7 +857,7 @@ def test_fit_tetramer_unfolding_three_states_shared_slopes_many_signals_constant
 
 
 
-    global_fit_params, cov, predicted_lst = fit_oligomer_unfolding_three_states_shared_slopes_many_signals(
+    global_fit_params, cov, predicted_lst, _, _ = fit_oligomer_unfolding_three_states_shared_slopes_many_signals(
         initial_parameters=p0_tm,
         low_bounds=low_bounds_tm,
         high_bounds=high_bounds_tm,
@@ -888,7 +877,7 @@ def test_fit_tetramer_unfolding_three_states_shared_slopes_many_signals_constant
     low_bounds_dh = low_bounds.copy()
     high_bounds_dh = high_bounds.copy()
 
-    global_fit_params, cov, predicted_lst = fit_oligomer_unfolding_three_states_shared_slopes_many_signals(
+    global_fit_params, cov, predicted_lst, _, _ = fit_oligomer_unfolding_three_states_shared_slopes_many_signals(
         initial_parameters=p0_dh,
         low_bounds=low_bounds_dh,
         high_bounds=high_bounds_dh,
@@ -932,7 +921,7 @@ def test_fit_dimer_dimeric_unfolding_three_states_shared_slopes_many_signals_con
         'baseline_unfolded_fx': constant_baseline,
     }
 
-    global_fit_params, cov, predicted_lst = fit_oligomer_unfolding_three_states_shared_slopes_many_signals(
+    global_fit_params, cov, predicted_lst, _, _ = fit_oligomer_unfolding_three_states_shared_slopes_many_signals(
         initial_parameters=p0,
         low_bounds=low_bounds,
         high_bounds=high_bounds,
@@ -950,7 +939,7 @@ def test_fit_dimer_dimeric_unfolding_three_states_shared_slopes_many_signals_con
 
 
 
-    global_fit_params, cov, predicted_lst = fit_oligomer_unfolding_three_states_shared_slopes_many_signals(
+    global_fit_params, cov, predicted_lst, _, _ = fit_oligomer_unfolding_three_states_shared_slopes_many_signals(
         initial_parameters=p0_tm,
         low_bounds=low_bounds_tm,
         high_bounds=high_bounds_tm,
@@ -970,7 +959,7 @@ def test_fit_dimer_dimeric_unfolding_three_states_shared_slopes_many_signals_con
     low_bounds_dh = low_bounds.copy()
     high_bounds_dh = high_bounds.copy()
 
-    global_fit_params, cov, predicted_lst = fit_oligomer_unfolding_three_states_shared_slopes_many_signals(
+    global_fit_params, cov, predicted_lst, _, _ = fit_oligomer_unfolding_three_states_shared_slopes_many_signals(
         initial_parameters=p0_dh,
         low_bounds=low_bounds_dh,
         high_bounds=high_bounds_dh,
@@ -1014,7 +1003,7 @@ def test_fit_trimer_trimeric_unfolding_three_states_shared_slopes_many_signals_c
         'baseline_unfolded_fx': constant_baseline,
     }
 
-    global_fit_params, cov, predicted_lst = fit_oligomer_unfolding_three_states_shared_slopes_many_signals(
+    global_fit_params, cov, predicted_lst, _, _ = fit_oligomer_unfolding_three_states_shared_slopes_many_signals(
         initial_parameters=p0,
         low_bounds=low_bounds,
         high_bounds=high_bounds,
@@ -1032,7 +1021,7 @@ def test_fit_trimer_trimeric_unfolding_three_states_shared_slopes_many_signals_c
 
 
 
-    global_fit_params, cov, predicted_lst = fit_oligomer_unfolding_three_states_shared_slopes_many_signals(
+    global_fit_params, cov, predicted_lst, _, _ = fit_oligomer_unfolding_three_states_shared_slopes_many_signals(
         initial_parameters=p0_tm,
         low_bounds=low_bounds_tm,
         high_bounds=high_bounds_tm,
@@ -1052,7 +1041,7 @@ def test_fit_trimer_trimeric_unfolding_three_states_shared_slopes_many_signals_c
     low_bounds_dh = low_bounds.copy()
     high_bounds_dh = high_bounds.copy()
 
-    global_fit_params, cov, predicted_lst = fit_oligomer_unfolding_three_states_shared_slopes_many_signals(
+    global_fit_params, cov, predicted_lst, _, _ = fit_oligomer_unfolding_three_states_shared_slopes_many_signals(
         initial_parameters=p0_dh,
         low_bounds=low_bounds_dh,
         high_bounds=high_bounds_dh,
@@ -1098,7 +1087,7 @@ def test_fit_monomer_unfolding_three_states_many_signals_constant():
         'baseline_unfolded_fx': constant_baseline,
     }
 
-    global_fit_params, cov, predicted_lst = fit_oligomer_unfolding_three_states_many_signals(
+    global_fit_params, cov, predicted_lst, _, _ = fit_oligomer_unfolding_three_states_many_signals(
         initial_parameters=p0,
         low_bounds=low_bounds,
         high_bounds=high_bounds,
@@ -1121,7 +1110,7 @@ def test_fit_monomer_unfolding_three_states_many_signals_constant():
 
     scale_factor_exclude_ids = [len(signal_list) - 1]
 
-    global_fit_params, cov, predicted_lst = fit_oligomer_unfolding_three_states_many_signals(
+    global_fit_params, cov, predicted_lst, _, _ = fit_oligomer_unfolding_three_states_many_signals(
         initial_parameters=p0,
         low_bounds=low_bounds,
         high_bounds=high_bounds,
@@ -1165,7 +1154,7 @@ def test_fit_dimer_unfolding_three_states_many_signals_constant():
         'baseline_unfolded_fx': constant_baseline,
     }
 
-    global_fit_params, cov, predicted_lst = fit_oligomer_unfolding_three_states_many_signals(
+    global_fit_params, cov, predicted_lst, _, _ = fit_oligomer_unfolding_three_states_many_signals(
         initial_parameters=p0,
         low_bounds=low_bounds,
         high_bounds=high_bounds,
@@ -1188,7 +1177,7 @@ def test_fit_dimer_unfolding_three_states_many_signals_constant():
 
     scale_factor_exclude_ids = [len(signal_list) - 1]
 
-    global_fit_params, cov, predicted_lst = fit_oligomer_unfolding_three_states_many_signals(
+    global_fit_params, cov, predicted_lst, _, _ = fit_oligomer_unfolding_three_states_many_signals(
         initial_parameters=p0,
         low_bounds=low_bounds,
         high_bounds=high_bounds,
@@ -1232,7 +1221,7 @@ def test_fit_trimer_unfolding_three_states_many_signals_constant():
         'baseline_unfolded_fx': constant_baseline,
     }
 
-    global_fit_params, cov, predicted_lst = fit_oligomer_unfolding_three_states_many_signals(
+    global_fit_params, cov, predicted_lst, _, _ = fit_oligomer_unfolding_three_states_many_signals(
         initial_parameters=p0,
         low_bounds=low_bounds,
         high_bounds=high_bounds,
@@ -1255,7 +1244,7 @@ def test_fit_trimer_unfolding_three_states_many_signals_constant():
 
     scale_factor_exclude_ids = [len(signal_list) - 1]
 
-    global_fit_params, cov, predicted_lst = fit_oligomer_unfolding_three_states_many_signals(
+    global_fit_params, cov, predicted_lst, _, _ = fit_oligomer_unfolding_three_states_many_signals(
         initial_parameters=p0,
         low_bounds=low_bounds,
         high_bounds=high_bounds,
@@ -1298,7 +1287,7 @@ def test_fit_tetramer_unfolding_three_states_many_signals_constant():
         'baseline_unfolded_fx': constant_baseline,
     }
 
-    global_fit_params, cov, predicted_lst = fit_oligomer_unfolding_three_states_many_signals(
+    global_fit_params, cov, predicted_lst, _, _ = fit_oligomer_unfolding_three_states_many_signals(
         initial_parameters=p0,
         low_bounds=low_bounds,
         high_bounds=high_bounds,
@@ -1321,7 +1310,7 @@ def test_fit_tetramer_unfolding_three_states_many_signals_constant():
 
     scale_factor_exclude_ids = [len(signal_list) - 1]
 
-    global_fit_params, cov, predicted_lst = fit_oligomer_unfolding_three_states_many_signals(
+    global_fit_params, cov, predicted_lst, _, _ = fit_oligomer_unfolding_three_states_many_signals(
         initial_parameters=p0,
         low_bounds=low_bounds,
         high_bounds=high_bounds,
@@ -1364,7 +1353,7 @@ def test_fit_dimer_dimeric_unfolding_three_states_many_signals_constant():
         'baseline_unfolded_fx': constant_baseline,
     }
 
-    global_fit_params, cov, predicted_lst = fit_oligomer_unfolding_three_states_many_signals(
+    global_fit_params, cov, predicted_lst, _, _ = fit_oligomer_unfolding_three_states_many_signals(
         initial_parameters=p0,
         low_bounds=low_bounds,
         high_bounds=high_bounds,
@@ -1387,7 +1376,7 @@ def test_fit_dimer_dimeric_unfolding_three_states_many_signals_constant():
 
     scale_factor_exclude_ids = [len(signal_list) - 1]
 
-    global_fit_params, cov, predicted_lst = fit_oligomer_unfolding_three_states_many_signals(
+    global_fit_params, cov, predicted_lst, _, _ = fit_oligomer_unfolding_three_states_many_signals(
         initial_parameters=p0,
         low_bounds=low_bounds,
         high_bounds=high_bounds,
@@ -1430,7 +1419,7 @@ def test_fit_trimer_trimeric_unfolding_three_states_many_signals_constant():
         'baseline_unfolded_fx': constant_baseline,
     }
 
-    global_fit_params, cov, predicted_lst = fit_oligomer_unfolding_three_states_many_signals(
+    global_fit_params, cov, predicted_lst, _, _ = fit_oligomer_unfolding_three_states_many_signals(
         initial_parameters=p0,
         low_bounds=low_bounds,
         high_bounds=high_bounds,
@@ -1453,7 +1442,7 @@ def test_fit_trimer_trimeric_unfolding_three_states_many_signals_constant():
 
     scale_factor_exclude_ids = [len(signal_list) - 1]
 
-    global_fit_params, cov, predicted_lst = fit_oligomer_unfolding_three_states_many_signals(
+    global_fit_params, cov, predicted_lst, _, _ = fit_oligomer_unfolding_three_states_many_signals(
         initial_parameters=p0,
         low_bounds=low_bounds,
         high_bounds=high_bounds,

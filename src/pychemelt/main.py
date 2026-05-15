@@ -132,6 +132,9 @@ class Sample:
         self.predicted_lst_multiple_scaled = None
         self.signal_lst_multiple_scaled = None
 
+        self.result = None  # lmfit MinimizerResult object from fitting
+        self.minimizer = None  # lmfit Minimizer object from fitting
+
     def read_file(self, file):
 
         """

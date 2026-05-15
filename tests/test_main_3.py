@@ -105,13 +105,15 @@ def test_guess_Cp():
     assert 1.4 <= pychem_sim.Cp0 <= 2.2 # 0.3 units tolerance from 1.8
 
 
-def test_fit_thermal_unfolding_global():
+def test_fit_thermal_unfolding_global_err():
 
     pychem_sim.max_points = 200
 
     with pytest.raises(ValueError):
        pychem_sim.Cp0 = 0 # Force error
        pychem_sim.fit_thermal_unfolding_global()
+
+def test_fit_thermal_unfolding_global():
 
     pychem_sim.Cp0 = 1.8
     pychem_sim.fit_thermal_unfolding_global()
@@ -124,15 +126,16 @@ def test_fit_thermal_unfolding_global():
     np.testing.assert_allclose(actual,expected,rtol=0.3)
 
 def test_estimate_derivative_prediction_interpolation():
-    tmp = pychem_sim.temp_lst_expanded.copy()
 
-    pychem_sim.temp_lst_expanded[0][0] = -100
+    # Force non-evenly spaced temperatures to test interpolation in derivative estimation
+    pychem_sim.temp_lst_expanded[0][0] -= 0.5
 
     pychem_sim.estimate_derivative()
 
     assert len(pychem_sim.deriv_lst_multiple[0]) == 7
 
-    pychem_sim.temp_lst_expanded = tmp
+    # Restore original temperatures for subsequent tests
+    pychem_sim.temp_lst_expanded[0][0] += 0.5
 
     pychem_sim.fit_thermal_unfolding_global()
 

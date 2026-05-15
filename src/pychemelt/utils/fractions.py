@@ -99,27 +99,31 @@ def fu_two_state_tetramer(K,C):
         Fraction of unfolded protein
     '''
 
-    A = 1
-    D = K/256/np.power(C,3)
+    C_cubed = np.power(C, 3)
+    D = K / 256 / C_cubed
     E = -D
 
-    b = D/A
-    c = E/A
+    b = D  # A = 1, so b = D/A = D
+    c = E  # c = E/A = E
 
     P = -c
-    Q = -np.square(b)/8
+    b_sq = np.square(b)
+    Q = -b_sq / 8
 
-    R = -Q/2 + np.sqrt(np.square(Q)/4+P**3/27)
+    Q_sq = np.square(Q)
+    P_cubed = np.power(P, 3)
+    R = -Q / 2 + np.sqrt(Q_sq / 4 + P_cubed / 27)
 
     U = np.cbrt(R)
-    y = U-P/(3*U)
-    W = np.sqrt(2*y)
+    y = U - P / (3 * U)
+    W = np.sqrt(2 * y)
 
-    x4 = 0.5*(-W+np.sqrt(-(2*y-2*b/W)))  
+    two_y = 2 * y
+    x4 = 0.5 * (-W + np.sqrt(-(two_y - 2 * b / W)))
 
-    x4_sel = np.logical_and(np.greater(x4,0),np.less(x4,1.01))
+    x4_sel = np.logical_and(np.greater(x4, 0), np.less(x4, 1.01))
 
-    fu = x4_sel*np.nan_to_num(x4,nan=0.0)
+    fu = x4_sel * np.nan_to_num(x4, nan=0.0)
 
     return fu
 
@@ -129,9 +133,10 @@ def fi_three_state_tetramer_monomeric_intermediate(K1,K2,Ct):
     and the concentration of tetramer equivalent Ct, return the fraction of intermediate
     '''
 
-    Pt = Ct*4
+    Pt = Ct * 4
+    Pt_cubed = np.power(Pt, 3)
 
-    A = 4 * (Pt ** 3) / K1
+    A = 4 * Pt_cubed / K1
     D = 1 + K2
     E = -1
 
@@ -139,15 +144,19 @@ def fi_three_state_tetramer_monomeric_intermediate(K1,K2,Ct):
     c = E / A
 
     P = -c
-    Q = -np.square(b) / 8
+    b_sq = np.square(b)
+    Q = -b_sq / 8
 
-    R = -Q / 2 + np.sqrt(np.square(Q) / 4 + P ** 3 / 27)
+    Q_sq = np.square(Q)
+    P_cubed = np.power(P, 3)
+    R = -Q / 2 + np.sqrt(Q_sq / 4 + P_cubed / 27)
 
     U = np.cbrt(R)
     y = U - P / (3 * U)
     W = np.sqrt(2 * y)
 
-    x4 = 0.5 * (-W + np.sqrt(-(2 * y - 2 * b / W)))
+    two_y = 2 * y
+    x4 = 0.5 * (-W + np.sqrt(-(two_y - 2 * b / W)))
 
     x4_sel = np.logical_and(np.logical_and(np.greater(x4, 0), np.less(x4, 1.01)), np.less(W, 1e10))
 
@@ -201,4 +210,4 @@ def fi_three_state_trimer_trimeric_intermediate(fu,K2,C):
     Given the fraction of unfolded protein fu, the equilibrium constant K2, of I3 <-> 3U,
     and the concentration of trimer equivalent C, return the fraction of intermediate
     '''
-    return 27*np.square(C)*(fu**3) / K2
+    return 27*np.square(C)*(np.power(fu, 3)) / K2

@@ -35,7 +35,8 @@ from .utils.fitting import (
     fit_tc_unfolding_shared_slopes_many_signals,
     fit_tc_unfolding_many_signals,
     evaluate_fitting_and_refit,
-    baseline_fx_name_to_req_params
+    baseline_fx_name_to_req_params,
+    compute_asymmetric_confidence_intervals
 )
 
 class Monomer(Sample):
@@ -559,7 +560,7 @@ class Monomer(Sample):
             kwargs['list_of_temperatures'] = self.temp_lst_expanded_subset
             kwargs['list_of_signals'] = self.signal_lst_expanded_subset
 
-            global_fit_params, cov, predicted = fit_fx(**kwargs)
+            global_fit_params, cov, predicted, result, minimizer = fit_fx(**kwargs)
 
             p0 = global_fit_params
 
@@ -568,7 +569,7 @@ class Monomer(Sample):
         kwargs['list_of_signals'] = self.signal_lst_expanded
 
         # First fit without m-value dependence on temperature
-        global_fit_params, cov, predicted = fit_fx(**kwargs)
+        global_fit_params, cov, predicted, result, minimizer = fit_fx(**kwargs)
 
         # Insert the initial estimate for the m-value dependence of temperature, in the position 4
         if fit_m_dep:
@@ -586,9 +587,9 @@ class Monomer(Sample):
 
             params_names.insert(id_m+1, 'm - T dependence')
 
-            global_fit_params, cov, predicted = fit_fx(**kwargs)
+            global_fit_params, cov, predicted, result, minimizer = fit_fx(**kwargs)
 
-        global_fit_params, cov, predicted, p0, low_bounds, high_bounds = evaluate_fitting_and_refit(
+        global_fit_params, cov, predicted, p0, low_bounds, high_bounds, result, minimizer = evaluate_fitting_and_refit(
             global_fit_params,
             cov,
             predicted,
@@ -602,6 +603,8 @@ class Monomer(Sample):
             self.fixed_cp,
             kwargs,
             fit_fx,
+            result=result,
+            minimizer=minimizer,
         )
 
         rel_errors = relative_errors(global_fit_params, cov)
@@ -613,6 +616,9 @@ class Monomer(Sample):
         self.rel_errors = rel_errors
 
         self.predicted_lst_multiple = re_arrange_predictions(predicted, self.nr_signals, self.nr_den)
+
+        self.result = result
+        self.minimizer = minimizer
 
         self.global_fit_done = True
 
@@ -776,7 +782,7 @@ class Monomer(Sample):
 
         if self.pre_fit:
             # Do a pre-fit with a reduced data set
-            global_fit_params, cov, predicted = fit_fx(**kwargs)
+            global_fit_params, cov, predicted, result, minimizer = fit_fx(**kwargs)
 
             p0 = global_fit_params
         # End of pre-fit
@@ -785,9 +791,9 @@ class Monomer(Sample):
         kwargs['list_of_temperatures'] = self.temp_lst_expanded
         kwargs['list_of_signals'] = self.signal_lst_expanded
 
-        global_fit_params, cov, predicted = fit_fx(**kwargs)
+        global_fit_params, cov, predicted, result, minimizer = fit_fx(**kwargs)
 
-        global_fit_params, cov, predicted, p0, low_bounds, high_bounds = evaluate_fitting_and_refit(
+        global_fit_params, cov, predicted, p0, low_bounds, high_bounds, result, minimizer = evaluate_fitting_and_refit(
             global_fit_params,
             cov,
             predicted,
@@ -801,6 +807,8 @@ class Monomer(Sample):
             self.fixed_cp,
             kwargs,
             fit_fx,
+            result=result,
+            minimizer=minimizer,
         )
 
         rel_errors = relative_errors(global_fit_params, cov)
@@ -815,6 +823,9 @@ class Monomer(Sample):
             predicted, self.nr_signals, self.nr_den)
 
         self.params_names = params_names
+
+        self.result = result
+        self.minimizer = minimizer
 
         self.create_params_df()
         self.create_dg_df()
@@ -1040,7 +1051,7 @@ class Monomer(Sample):
 
         if self.pre_fit:
 
-            global_fit_params, cov, predicted = fit_fx(**kwargs)
+            global_fit_params, cov, predicted, result, minimizer = fit_fx(**kwargs)
 
             # Assign the fitted parameters to the initial guess for the full dataset
             p0 = global_fit_params
@@ -1051,7 +1062,7 @@ class Monomer(Sample):
         kwargs['list_of_signals'] = self.signal_lst_expanded
         kwargs['list_of_temperatures'] = self.temp_lst_expanded
 
-        global_fit_params, cov, predicted = fit_fx(**kwargs)
+        global_fit_params, cov, predicted, result, minimizer = fit_fx(**kwargs)
 
         # Remove scale factors that are not significant
         if model_scale_factor:
@@ -1125,7 +1136,7 @@ class Monomer(Sample):
                     kwargs['high_bounds'] = high_bounds
                     kwargs['scale_factor_exclude_ids'] = scale_factor_exclude_ids
 
-                    global_fit_params, cov, predicted = fit_fx(**kwargs)
+                    global_fit_params, cov, predicted, result, minimizer = fit_fx(**kwargs)
 
         rel_errors = relative_errors(global_fit_params, cov)
 
@@ -1138,6 +1149,9 @@ class Monomer(Sample):
 
         self.predicted_lst_multiple = re_arrange_predictions(
             predicted, self.nr_signals, self.nr_den)
+
+        self.result = result
+        self.minimizer = minimizer
 
         self.create_params_df()
         self.create_dg_df()

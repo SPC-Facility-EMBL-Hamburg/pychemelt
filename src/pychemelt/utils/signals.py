@@ -1,6 +1,9 @@
 """
 This module contains helper functions to obtain the signal, given certain parameters
 Author: Osvaldo Burastero
+
+Note: One could move dT outside the signal functions but the speedup was not significant.
+
 """
 
 from .rates import (
@@ -25,7 +28,24 @@ from .fractions import (
 
 from .math import shift_temperature_K
 
-
+__all__ = [
+    "signal_two_state_tc_unfolding",
+    "signal_two_state_tc_unfolding_shifted",
+    "signal_two_state_t_unfolding",
+    "two_state_thermal_unfold_curve",
+    "two_state_thermal_unfold_curve_dimer",
+    "two_state_thermal_unfold_curve_trimer",
+    "two_state_thermal_unfold_curve_tetramer",
+    "unfolding_curve_monomer_monomeric_intermediate",
+    "unfolding_curve_dimer_monomeric_intermediate",
+    "unfolding_curve_trimer_monomeric_intermediate",
+    "unfolding_curve_tetramer_monomeric_intermediate",
+    "unfolding_curve_trimer_trimeric_intermediate",
+    "unfolding_curve_dimer_dimeric_intermediate",
+    "map_two_state_model_to_signal_fx",
+    "map_three_state_model_to_signal_fx"
+]
+    
 
 def signal_two_state_tc_unfolding(
         T,D,DHm,Tm,Cp0,m0,m1,
@@ -137,8 +157,8 @@ def signal_two_state_t_unfolding(
 
 def two_state_thermal_unfold_curve(
         T,C,Tm,dHm,
-        p1_N, p2_N, p3_N, p4_N,
-        p1_U, p2_U, p3_U, p4_U,
+        p1_N, p2_N, p3_N, 
+        p1_U, p2_U, p3_U, 
         baseline_N_fx,
         baseline_U_fx,
         Cp=0):
@@ -152,7 +172,7 @@ def two_state_thermal_unfold_curve(
     T : array-like
         Temperature
     C : array-like
-        Oligomer sample concentration
+        Oligomer sample concentration - only for compatibility with oligomeric models, not used in the monomeric model
     Tm : float
         Temperature at which the equilibrium constant equals one
     dHm : float
@@ -180,15 +200,15 @@ def two_state_thermal_unfold_curve(
 
     dT  = shift_temperature_K(T)
 
-    S_native   = baseline_N_fx(dT,0,0,p2_N,p3_N,p4_N)
-    S_unfolded = baseline_U_fx(dT,0,0,p2_U,p3_U,p4_U)
+    S_native   = baseline_N_fx(dT, p1_N, p2_N, p3_N)
+    S_unfolded = baseline_U_fx(dT, p1_U, p2_U, p3_U)
 
     return C * (fn * (S_native) + fu * (S_unfolded))
 
 def two_state_thermal_unfold_curve_dimer(
         T,C,Tm,dHm,
-        p1_N, p2_N, p3_N, p4_N,
-        p1_U, p2_U, p3_U, p4_U,
+        p1_N, p2_N, p3_N, 
+        p1_U, p2_U, p3_U,
         baseline_N_fx,
         baseline_U_fx,
         Cp=0):
@@ -235,15 +255,15 @@ def two_state_thermal_unfold_curve_dimer(
 
     dT  = shift_temperature_K(T)
 
-    S_native   = baseline_N_fx(dT,0,0,p2_N,p3_N,p4_N)
-    S_unfolded = baseline_U_fx(dT,0,0,p2_U,p3_U,p4_U)
+    S_native   = baseline_N_fx(dT,p1_N,p2_N,p3_N)
+    S_unfolded = baseline_U_fx(dT,p1_U,p2_U,p3_U)
 
     return C * (fn * (S_native) + fu * (S_unfolded) * 2)
 
 def two_state_thermal_unfold_curve_trimer(
         T,C,Tm,dHm,
-        p1_N, p2_N, p3_N, p4_N,
-        p1_U, p2_U, p3_U, p4_U,
+        p1_N, p2_N, p3_N,
+        p1_U, p2_U, p3_U,
         baseline_N_fx,
         baseline_U_fx,
         Cp=0):
@@ -290,15 +310,15 @@ def two_state_thermal_unfold_curve_trimer(
 
     dT  = shift_temperature_K(T)
 
-    S_native   = baseline_N_fx(dT,0,0,p2_N,p3_N,p4_N)
-    S_unfolded = baseline_U_fx(dT,0,0,p2_U,p3_U,p4_U)
+    S_native   = baseline_N_fx(dT,p1_N,p2_N,p3_N)
+    S_unfolded = baseline_U_fx(dT,p1_U,p2_U,p3_U)
 
     return C * (fn * (S_native) + fu * (S_unfolded) * 3)
 
 def two_state_thermal_unfold_curve_tetramer(
         T,C,Tm,dHm,
-        p1_N, p2_N, p3_N, p4_N,
-        p1_U, p2_U, p3_U, p4_U,
+        p1_N, p2_N, p3_N,
+        p1_U, p2_U, p3_U, 
         baseline_N_fx,
         baseline_U_fx,
         Cp=0,
@@ -347,8 +367,8 @@ def two_state_thermal_unfold_curve_tetramer(
 
     dT  = shift_temperature_K(T)
 
-    S_native   = baseline_N_fx(dT,0,0,p2_N,p3_N,p4_N)
-    S_unfolded = baseline_U_fx(dT,0,0,p2_U,p3_U,p4_U)
+    S_native   = baseline_N_fx(dT,p1_N,p2_N,p3_N)
+    S_unfolded = baseline_U_fx(dT,p1_U,p2_U,p3_U)
 
     return C * (fn * (S_native) + fu * (S_unfolded) * 4)
 
@@ -382,8 +402,8 @@ def map_two_state_model_to_signal_fx(model):
 
 def unfolding_curve_monomer_monomeric_intermediate(
         T, C, T1, DH1, T2, DH2,
-        p1_N, p2_N, p3_N, p4_N,
-        p1_U, p2_U, p3_U, p4_U,
+        p1_N, p2_N, p3_N,
+        p1_U, p2_U, p3_U, 
         baseline_N_fx,
         baseline_U_fx,
         bI,
@@ -401,16 +421,16 @@ def unfolding_curve_monomer_monomeric_intermediate(
 
     dT = shift_temperature_K(T)
 
-    S_native   = baseline_N_fx(dT,0,0,p2_N,p3_N,p4_N)
-    S_unfolded = baseline_U_fx(dT,0,0,p2_U,p3_U,p4_U)
+    S_native   = baseline_N_fx(dT,p1_N,p2_N,p3_N)
+    S_unfolded = baseline_U_fx(dT,p1_U,p2_U,p3_U)
 
     return C * (xN * S_native + xI * bI + xU * S_unfolded)
 
 
 def unfolding_curve_dimer_monomeric_intermediate(
         T, C, T1, DH1, T2, DH2,
-        p1_N, p2_N, p3_N, p4_N,
-        p1_U, p2_U, p3_U, p4_U,
+        p1_N, p2_N, p3_N, 
+        p1_U, p2_U, p3_U, 
         baseline_N_fx,
         baseline_U_fx,
         bI,
@@ -429,16 +449,16 @@ def unfolding_curve_dimer_monomeric_intermediate(
 
     dT = shift_temperature_K(T)
 
-    S_native   = baseline_N_fx(dT,0,0,p2_N,p3_N,p4_N)
-    S_unfolded = baseline_U_fx(dT,0,0,p2_U,p3_U,p4_U)
+    S_native   = baseline_N_fx(dT,p1_N,p2_N,p3_N)
+    S_unfolded = baseline_U_fx(dT,p1_U,p2_U,p3_U)
 
     return  C * ((1 - fu - fi) * S_native + fi * bI * 2 + fu * S_unfolded * 2)
 
 
 def unfolding_curve_trimer_monomeric_intermediate(
         T, C, T1, DH1, T2, DH2,
-        p1_N, p2_N, p3_N, p4_N,
-        p1_U, p2_U, p3_U, p4_U,
+        p1_N, p2_N, p3_N, 
+        p1_U, p2_U, p3_U, 
         baseline_N_fx,
         baseline_U_fx,
         bI,
@@ -458,16 +478,16 @@ def unfolding_curve_trimer_monomeric_intermediate(
 
     dT = shift_temperature_K(T)
 
-    S_native   = baseline_N_fx(dT,0,0,p2_N,p3_N,p4_N)
-    S_unfolded = baseline_U_fx(dT,0,0,p2_U,p3_U,p4_U)
+    S_native   = baseline_N_fx(dT,p1_N,p2_N,p3_N)
+    S_unfolded = baseline_U_fx(dT,p1_U,p2_U,p3_U)
 
     return C * (fn * S_native + fi * bI * 3 + fu * S_unfolded * 3)
 
 
 def unfolding_curve_tetramer_monomeric_intermediate(
         T, C, T1, DH1, T2, DH2,
-        p1_N, p2_N, p3_N, p4_N,
-        p1_U, p2_U, p3_U, p4_U,
+        p1_N, p2_N, p3_N, 
+        p1_U, p2_U, p3_U, 
         baseline_N_fx,
         baseline_U_fx,
         bI,
@@ -492,16 +512,16 @@ def unfolding_curve_tetramer_monomeric_intermediate(
 
     dT = shift_temperature_K(T)
 
-    S_native   = baseline_N_fx(dT,0,0,p2_N,p3_N,p4_N)
-    S_unfolded = baseline_U_fx(dT,0,0,p2_U,p3_U,p4_U)
+    S_native   = baseline_N_fx(dT,p1_N,p2_N,p3_N)
+    S_unfolded = baseline_U_fx(dT,p1_U,p2_U,p3_U)
 
     return C * (fn * S_native + fi * bI * 4 + fu * S_unfolded * 4)
 
 
 def unfolding_curve_trimer_trimeric_intermediate(
         T, C, T1, DH1, T2, DH2,
-        p1_N, p2_N, p3_N, p4_N,
-        p1_U, p2_U, p3_U, p4_U,
+        p1_N, p2_N, p3_N, 
+        p1_U, p2_U, p3_U, 
         baseline_N_fx,
         baseline_U_fx,
         bI,
@@ -519,16 +539,16 @@ def unfolding_curve_trimer_trimeric_intermediate(
 
     dT = shift_temperature_K(T)
 
-    S_native   = baseline_N_fx(dT,0,0,p2_N,p3_N,p4_N)
-    S_unfolded = baseline_U_fx(dT,0,0,p2_U,p3_U,p4_U)
+    S_native   = baseline_N_fx(dT,p1_N,p2_N,p3_N)
+    S_unfolded = baseline_U_fx(dT,p1_U,p2_U,p3_U)
 
     return C * ((1 - fu - fi) * S_native + fi * bI + fu * S_unfolded * 3)
 
 
 def unfolding_curve_dimer_dimeric_intermediate(
         T, C, T1, DH1, T2, DH2,
-        p1_N, p2_N, p3_N, p4_N,
-        p1_U, p2_U, p3_U, p4_U,
+        p1_N, p2_N, p3_N, 
+        p1_U, p2_U, p3_U, 
         baseline_N_fx,
         baseline_U_fx,
         bI,
@@ -547,8 +567,8 @@ def unfolding_curve_dimer_dimeric_intermediate(
 
     dT = shift_temperature_K(T)
 
-    S_native   = baseline_N_fx(dT,0,0,p2_N,p3_N,p4_N)
-    S_unfolded = baseline_U_fx(dT,0,0,p2_U,p3_U,p4_U)
+    S_native   = baseline_N_fx(dT,p1_N,p2_N,p3_N)
+    S_unfolded = baseline_U_fx(dT,p1_U,p2_U,p3_U)
 
     return C * ((1 - fu - fi) * S_native + fi * bI + fu * S_unfolded * 2)
 
