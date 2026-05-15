@@ -4,6 +4,7 @@ Author: Osvaldo Burastero
 """
 import lmfit
 import numpy as np
+
 from scipy.optimize     import curve_fit
 from scipy.optimize     import least_squares
 
@@ -689,6 +690,8 @@ def fit_tc_unfolding_single_slopes(
     # Convert Tm back to Celsius for the returned vector
     if tm_value is None:
         global_fit_params[0] = temperature_to_celsius(global_fit_params[0])
+        low_bounds[0] = temperature_to_celsius(low_bounds[0])
+        high_bounds[0] = temperature_to_celsius(high_bounds[0])
 
     return global_fit_params, cov, predicted_lst, result, minimizer
     
@@ -1486,6 +1489,8 @@ def fit_tc_unfolding_shared_slopes_many_signals(
     # Convert the Tm back to Celsius
     if tm_value is None:
         global_fit_params[0] = temperature_to_celsius(global_fit_params[0])
+        low_bounds[0] = temperature_to_celsius(low_bounds[0])
+        high_bounds[0] = temperature_to_celsius(high_bounds[0])
 
     return global_fit_params, cov, predicted_lst, result, minimizer
 
@@ -2305,6 +2310,8 @@ def fit_tc_unfolding_many_signals(
 
     # Convert the Tm to Celsius
     global_fit_params[0] = temperature_to_celsius(global_fit_params[0])
+    low_bounds[0] = temperature_to_celsius(low_bounds[0])
+    high_bounds[0] = temperature_to_celsius(high_bounds[0])
 
     return global_fit_params, cov, predicted_lst, result, minimizer
 

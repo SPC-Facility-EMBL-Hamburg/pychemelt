@@ -4,11 +4,16 @@ Author: Osvaldo Burastero
 """
 import re
 import numpy as np
+import pandas as pd
 import itertools
 
 from collections import Counter
 
-from .math import shift_temperature, relative_errors
+from .math import (
+    shift_temperature, 
+    relative_errors, 
+    temperature_to_celsius
+)
 
 from .fitting import (
     fit_line_robust,
@@ -43,7 +48,8 @@ __all__ = [
     'parse_number',
     'are_all_strings_numeric',
     'is_float',
-    'transform_to_list'
+    'transform_to_list',
+    'ci_dict_to_summary_df'
 ]
 
 def transform_to_list(element_or_list):
@@ -819,3 +825,67 @@ def is_float(element):
         return True
     except ValueError:
         return False
+    
+
+def ci_dict_to_summary_df(ci_dict,percentage=0.95):
+
+    """
+    Convert lmfit confidence interval dictionary into a summary DataFrame.
+
+    Parameters
+    ----------
+    ci_dict : dict
+        Dictionary containing confidence intervals for fitted parameters, typically in the format returned by lmfit.
+
+    Returns
+    -------
+    pd.DataFrame
+         DataFrame summarizing the confidence intervals for each parameter, with columns:
+         - Parameter: Name of the fitted parameter
+         - Lower_CI: Lower bound of the confidence interval
+         - Value: Best-fit value of the parameter
+         - Upper_CI: Upper bound of the confidence interval
+    """
+
+    # If Tm is among the parameters, convert confidence intervals back to Celsius
+    # and change the parameter name in the results for clarity
+    if 'Tm' in ci_dict:
+        ci_dict['Tm (°C)'] = []
+        for sigma_val, value in ci_dict.pop('Tm'):
+            value_celsius = temperature_to_celsius(value)
+            ci_dict['Tm (°C)'].append((sigma_val, value_celsius))
+
+    # Replace DH for ΔH
+    if 'DHm' in ci_dict:
+        ci_dict['ΔH'] = []
+        for sigma_val, value in ci_dict.pop('DHm'):
+            ci_dict['ΔH'].append((sigma_val, value))
+
+    # Replace Cp0 for ΔCp
+    if 'Cp0' in ci_dict:
+        ci_dict['ΔCp'] = []
+        for sigma_val, value in ci_dict.pop('Cp0'):
+            ci_dict['ΔCp'].append((sigma_val, value))
+
+    # Replace m0 for m-value
+    if 'm0' in ci_dict:
+        ci_dict['m-value'] = []
+        for sigma_val, value in ci_dict.pop('m0'):
+            ci_dict['m-value'].append((sigma_val, value))
+
+    rows = []
+
+    for param, vals in ci_dict.items():
+
+        lower = round(float(vals[0][1]), 2)
+        best  = round(float(vals[1][1]), 2)
+        upper = round(float(vals[2][1]), 2)
+
+        rows.append({
+            "Parameter": param,
+            f"Lower_CI_{percentage*100}%": lower,
+            "Value": best,
+            f"Upper_CI_{percentage*100}%": upper,
+        })
+
+    return pd.DataFrame(rows)
