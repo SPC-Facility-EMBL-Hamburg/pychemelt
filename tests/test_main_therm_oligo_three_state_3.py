@@ -10,6 +10,18 @@ Notes
 - The tests rely on seeded random number generators for reproducible results.
 - The module utilizes the `pytest` library for test development.
 
+Note for dev
+---------------------
+Dear dev, when creating new tests, please visualize the simulated curves before creating the tests
+For example, you can use the following code to visualize the curves:
+
+trimer_sim_trimeric = aux_create_pychem_sim(def_params, concs, "Trimer", "trimeric")
+
+from pychemelt.utils.plotting import plot_unfolding
+
+fig = plot_unfolding(trimer_sim_trimeric)
+fig.show()
+
 """
 
 import numpy as np
@@ -37,12 +49,12 @@ CP1 = 1.0
 CPTH = 2
 
 # Model / ground-truth parameters
-DHm_VAL_1 = 300
-DHm_VAL_2 = 300
-Tm_VAL_1 = 70
+DHm_VAL_1 = 200
+DHm_VAL_2 = 200
+Tm_VAL_1 = 60
 Tm_VAL_2 = 70
 
-INTERCEPT_I = 15
+INTERCEPT_I = 40
 
 INTERCEPT_N = 24
 SLOPE_N = -0.27
