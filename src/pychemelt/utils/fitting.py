@@ -989,6 +989,8 @@ def fit_oligomer_unfolding_three_states_single_slopes(
     dh2=None,
     CpTh_value=None,
     method="least_squares",
+    max_nfev=None
+
 ):
     """
     Vectorized and optimized version of global thermal unfolding fitting of oligomers.
@@ -1041,8 +1043,8 @@ def fit_oligomer_unfolding_three_states_single_slopes(
         high_bounds[0] = temperature_to_kelvin(high_bounds[0])
     else:
         initial_parameters[0] = temperature_to_kelvin(t1)
-        low_bounds[0] = initial_parameters[0] - 12
-        high_bounds[0] = initial_parameters[0] + 18
+        low_bounds[0] = initial_parameters[0] - 8
+        high_bounds[0] = initial_parameters[0] + 12
 
     if t2 is None:
         initial_parameters[2] = temperature_to_kelvin(initial_parameters[2])
@@ -1050,8 +1052,8 @@ def fit_oligomer_unfolding_three_states_single_slopes(
         high_bounds[2] = temperature_to_kelvin(high_bounds[2])
     else:
         initial_parameters[2] = temperature_to_kelvin(t2)
-        low_bounds[2] = initial_parameters[2] - 12
-        high_bounds[2] = initial_parameters[2] + 18
+        low_bounds[2] = initial_parameters[2] - 8
+        high_bounds[2] = initial_parameters[2] + 12
 
     if dh1 is not None:
         initial_parameters[1] = dh1
@@ -1228,7 +1230,7 @@ def fit_oligomer_unfolding_three_states_single_slopes(
     def residuals(pars):
         return model(pars) - y_all
 
-    minimizer = lmfit.Minimizer(residuals, params_lmfit, calc_covar=True)
+    minimizer = lmfit.Minimizer(residuals, params_lmfit, calc_covar=True,max_nfev=max_nfev)
     result = minimizer.minimize(method=method)
 
     global_fit_params = np.array([result.params[name].value for name in param_names], dtype=float)

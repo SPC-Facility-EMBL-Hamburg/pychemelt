@@ -19,7 +19,7 @@ RNG_SEED = 2
 TEMP_START = 20.0
 TEMP_STOP = 90.0
 N_TEMPS = 150
-CONCS = np.arange(10, 60, 10)*1e-6
+CONCS = np.array([2,6,24,72])*1e-6
 MAX_POINTS = 400
 
 # Model / ground-truth parameters
@@ -53,8 +53,8 @@ def_params = {
     'p3_U': 0,
     'baseline_N_fx':exponential_baseline,
     'baseline_U_fx':constant_baseline,
-    "Cp1":0.5,
-    'CpTh':1.0,
+    "Cp1":1,
+    'CpTh':2,
 }
 
 concs = CONCS

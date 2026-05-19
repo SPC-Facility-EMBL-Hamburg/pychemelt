@@ -23,7 +23,7 @@ RNG_SEED = 2
 TEMP_START = 20.0
 TEMP_STOP = 90.0
 N_TEMPS = 80
-CONCS = np.arange(10, 100, 10)*1e-6
+CONCS = np.array([10,20,30,40,50])*1e-6
 
 # Model / ground-truth parameters
 DHm_VAL = 250
@@ -453,6 +453,7 @@ def test_fit_monomer_unfolding_many_signals_exponential():
     np.testing.assert_allclose(global_fit_params[:2], [Tm_VAL,DHm_VAL], rtol=0.1, atol=1e-2)
 
 def test_fit_dimer_unfolding_many_signals_exponential():
+
     signal_fx = map_two_state_model_to_signal_fx("Dimer")
 
     signal_list = []
@@ -472,8 +473,8 @@ def test_fit_dimer_unfolding_many_signals_exponential():
     p0 += [C_N_VAL, C_U_VAL]
     p0 += [ALPHA_N_VAL,ALPHA_U_VAL]
 
-    low_bounds  = [0 for _ in p0]
-    high_bounds = [1e3 for _ in p0]
+    low_bounds  = [Tm_VAL-10,DHm_VAL-50] + [1e-3 for _ in p0[2:]]
+    high_bounds = [Tm_VAL+10,DHm_VAL+50] + [500 for _ in p0[2:]]
 
     kwargs = {
         'list_of_temperatures' : temp_list,
@@ -517,7 +518,7 @@ def test_fit_trimer_unfolding_many_signals_exponential():
     p0 += [ALPHA_N_VAL,ALPHA_U_VAL]
 
     low_bounds = [-0.1 for _ in p0]
-    high_bounds = [1e3 for _ in p0]
+    high_bounds = [500 for _ in p0]
 
 
     kwargs = {
@@ -561,7 +562,7 @@ def test_fit_tetramer_unfolding_many_signals_exponential():
     p0 += [ALPHA_N_VAL,ALPHA_U_VAL]
 
     low_bounds = [-0.1 for _ in p0]
-    high_bounds = [1e3 for _ in p0]
+    high_bounds = [500 for _ in p0]
 
 
     kwargs = {

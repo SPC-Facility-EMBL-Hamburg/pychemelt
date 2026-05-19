@@ -19,7 +19,7 @@ RNG_SEED = 2
 TEMP_START = 20.0
 TEMP_STOP = 90.0
 N_TEMPS = 100
-CONCS = np.arange(10, 100, 10)*1e-6
+CONCS = np.array([2,6,24,72])*1e-6
 MAX_POINTS = 400
 
 # Model / ground-truth parameters

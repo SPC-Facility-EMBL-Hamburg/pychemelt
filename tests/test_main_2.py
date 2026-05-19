@@ -241,7 +241,7 @@ def test_create_confidence_intervals():
             lower_bound = sample.ci_df.iloc[i,1]  # Assuming the second column is the lower CI
             upper_bound = sample.ci_df.iloc[i,3]  # Assuming the fourth column is the upper CI
 
-            assert lower_bound <= value <= upper_bound, f"Parameter {sample.ci_df.iloc[i,0]}: {value} not in [{lower_bound}, {upper_bound}] for sigma={sigma}"
+            assert lower_bound <= value <= upper_bound, f"Parameter {sample.ci_df.iloc[i,0]}: {value} not in [{lower_bound}, {upper_bound}] for percentage={percentage}"
 
 def test_leave_one_out_cross_validation():
 

@@ -10,7 +10,7 @@ Notes
 - The tests rely on seeded random number generators for reproducible results.
 - The module utilizes the `pytest` library for test development.
 
-Note for dev
+Note for futures dev
 ---------------------
 Dear dev, when creating new tests, please visualize the simulated curves before creating the tests
 For example, you can use the following code to visualize the curves:
@@ -21,6 +21,8 @@ from pychemelt.utils.plotting import plot_unfolding
 
 fig = plot_unfolding(trimer_sim_trimeric)
 fig.show()
+
+If only one transition is visible, consider adjusting T1, T2, bI, or the Cp values in def_params to create more distinct transitions. This will help ensure that the fitting tests are meaningful and can accurately assess the performance of the fitting algorithms.
 
 """
 
@@ -42,7 +44,7 @@ RNG_SEED = 2
 TEMP_START = 20.0
 TEMP_STOP = 90.0
 N_TEMPS = 150
-CONCS = np.arange(10, 60, 10) * 1e-6
+CONCS = np.array([2,6,24,72])*1e-6
 MAX_POINTS = 100
 
 CP1 = 1.0

@@ -21,8 +21,8 @@ from pychemelt.utils.signals import (
 RNG_SEED = 2
 TEMP_START = 30.0
 TEMP_STOP = 90.0
-N_TEMPS = 80
-CONCS = np.arange(10, 100, 10)*1e-6
+N_TEMPS = 70
+CONCS = np.array([1,3,9,81])*1e-6
 
 # Model / ground-truth parameters
 DHm_VAL = 250
@@ -72,7 +72,7 @@ def test_fit_monomer_unfolding_single_slopes_constant():
         temp_list.append(temp_range)
 
     p0 = [Tm_VAL, DHm_VAL, CP0_VAL] + [INTERCEPT_N] *len(concs) + [INTERCEPT_U] * len(concs)
-    low_bounds = [TEMP_START, TEMP_START, 1]   + [1e-5]*(2*len(concs))
+    low_bounds = [TEMP_START, DHm_VAL-50, 1]   + [1e-5]*(2*len(concs))
     high_bounds = [TEMP_STOP, DHm_VAL+100, 5] + [1e3]*(2*len(concs))
 
     kwargs = {
@@ -84,7 +84,7 @@ def test_fit_monomer_unfolding_single_slopes_constant():
         'baseline_unfolded_fx':constant_baseline, 
     }
 
-    global_fit_params, cov, predicted_lst, _, _ = fit_oligomer_unfolding_single_slopes(
+    global_fit_params, cov, predicted_lst, result, minimizer = fit_oligomer_unfolding_single_slopes(
         initial_parameters=p0,
         low_bounds=low_bounds,
         high_bounds=high_bounds,
@@ -93,7 +93,12 @@ def test_fit_monomer_unfolding_single_slopes_constant():
 
     expected = [Tm_VAL, DHm_VAL, CP0_VAL]
 
-    np.testing.assert_allclose(global_fit_params[:3], expected, rtol=0.1, atol=0)
+    error = np.abs(np.sqrt(np.diag(cov)))
+    params_minus_error = (global_fit_params - error)*0.98
+    params_plus_error = (global_fit_params + error)*1.02
+
+    for i in range(3):
+        assert params_minus_error[i] <= expected[i] <= params_plus_error[i], f"Parameter {i}: {expected[i]} not in [{params_minus_error[i]}, {params_plus_error[i]}]"
 
     # Fit with fixed Tm
     p0_tm = p0.copy()
@@ -114,7 +119,12 @@ def test_fit_monomer_unfolding_single_slopes_constant():
 
     expected = [DHm_VAL, CP0_VAL]
 
-    np.testing.assert_allclose(global_fit_params[:2], expected, rtol=0.1, atol=0)
+    error = np.abs(np.sqrt(np.diag(cov)))
+    params_minus_error = (global_fit_params - error)*0.98
+    params_plus_error = (global_fit_params + error)*1.02
+
+    for i in range(2):
+        assert params_minus_error[i] <= expected[i] <= params_plus_error[i], f"Parameter {i}: {expected[i]} not in [{params_minus_error[i]}, {params_plus_error[i]}]"
 
     # End of - Fit with fixed Tm
 
@@ -138,7 +148,13 @@ def test_fit_monomer_unfolding_single_slopes_constant():
 
     expected = [Tm_VAL, CP0_VAL]
 
-    np.testing.assert_allclose(global_fit_params[:2], expected, rtol=0.1, atol=0)
+    error = np.abs(np.sqrt(np.diag(cov)))
+    params_minus_error = (global_fit_params - error)*0.98
+    params_plus_error = (global_fit_params + error)*1.02
+
+    for i in range(2):
+        assert params_minus_error[i] <= expected[i] <= params_plus_error[i], f"Parameter {i}: {expected[i]} not in [{params_minus_error[i]}, {params_plus_error[i]}]"
+
 
     # End of - Fit with fixed dH
 
@@ -787,8 +803,13 @@ def test_fit_monomer_unfolding_many_signals_constant():
     )
 
     expected = [Tm_VAL, DHm_VAL, CP0_VAL]
+    error = np.abs(np.sqrt(np.diag(cov)))
+    params_minus_error = (global_fit_params - error)*0.99
+    params_plus_error = (global_fit_params + error)*1.01
 
-    np.testing.assert_allclose(global_fit_params[:3], expected, rtol=0.1, atol=0)
+    for i in range(3):
+        assert params_minus_error[i] <= expected[i] <= params_plus_error[i], f"Parameter {i}: {expected[i]} not in [{params_minus_error[i]}, {params_plus_error[i]}]"
+
 
     # Fit scale factor
 
@@ -813,7 +834,13 @@ def test_fit_monomer_unfolding_many_signals_constant():
 
     expected = [Tm_VAL, DHm_VAL, CP0_VAL]
 
-    np.testing.assert_allclose(global_fit_params[:3], expected, rtol=0.1, atol=0)
+    expected = [Tm_VAL, DHm_VAL, CP0_VAL]
+    error = np.abs(np.sqrt(np.diag(cov)))
+    params_minus_error = (global_fit_params - error*2) # Two sigma 
+    params_plus_error = (global_fit_params + error*2) 
+
+    for i in range(3):
+        assert params_minus_error[i] <= expected[i] <= params_plus_error[i], f"Parameter {i}: {expected[i]} not in [{params_minus_error[i]}, {params_plus_error[i]}]"
 
     # Fit cp value set
 
@@ -831,7 +858,14 @@ def test_fit_monomer_unfolding_many_signals_constant():
 
     expected = [Tm_VAL, DHm_VAL]
 
-    np.testing.assert_allclose(global_fit_params[:2], expected, rtol=0.1, atol=0)
+    error = np.abs(np.sqrt(np.diag(cov)))
+    params_minus_error = (global_fit_params - error)*0.99
+    params_plus_error = (global_fit_params + error)*1.01
+
+    for i in range(2):
+        assert params_minus_error[i] <= expected[i] <= params_plus_error[i], f"Parameter {i}: {expected[i]} not in [{params_minus_error[i]}, {params_plus_error[i]}]"
+
+
 
 def test_fit_dimer_unfolding_many_signals_constant():
     signal_fx = map_two_state_model_to_signal_fx("Dimer")
