@@ -294,4 +294,8 @@ def test_loo_no_ci():
     with pytest.raises(ValueError):
         sample.leave_one_out_cross_validation() 
 
+def test_create_fit_report():
 
+    sample.create_fit_report()
+
+    assert isinstance(sample.fit_report, str)

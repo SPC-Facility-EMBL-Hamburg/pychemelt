@@ -8,6 +8,7 @@ import numpy as np
 
 from itertools import chain
 from copy import deepcopy
+from lmfit import fit_report
 
 from .main import Sample
 
@@ -1322,6 +1323,19 @@ class Monomer(Sample):
             'Leave_one_out_std': loo_std,
             'N fits': n
         })
+
+        return None
+
+    def create_fit_report(self):
+
+        """
+        Create a fit report using the lmfit result object.
+        """
+
+        if self.result is None:
+            raise ValueError("No fit result available. Please run a fitting method before creating a fit report.")
+
+        self.fit_report = fit_report(self.result)
 
         return None
 
