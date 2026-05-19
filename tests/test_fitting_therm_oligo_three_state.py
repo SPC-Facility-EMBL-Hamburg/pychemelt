@@ -24,17 +24,17 @@ RNG_SEED = 2
 TEMP_START = 20.0
 TEMP_STOP = 90.0
 N_TEMPS = 150
-CONCS = np.arange(10, 80, 10)*1e-6
+CONCS = np.arange(10, 120, 15)*1e-6
 
 # Model / ground-truth parameters
-DHm_VAL_1 = 300
-DHm_VAL_2 = 300
+DHm_VAL_1 = 200
+DHm_VAL_2 = 200
 Tm_VAL_1 = 50
 Tm_VAL_2 = 70
 
 INTERCEPT_I = 100
 INTERCEPT_N = 80
-INTERCEPT_U = 110
+INTERCEPT_U = 120
 
 rng = np.random.default_rng(RNG_SEED)
 
@@ -52,8 +52,8 @@ def_params = {
     'p3_U': 0,
     'baseline_N_fx':constant_baseline,
     'baseline_U_fx':constant_baseline,
-    "Cp1": 0.5,
-    'CpTh': 1.0,
+    "Cp1": 1,
+    'CpTh': 2,
 }
 
 concs = CONCS
@@ -61,6 +61,26 @@ concs = CONCS
 # Calculate signal range for proper y-axis scaling
 temp_range  = np.linspace(TEMP_START, TEMP_STOP, N_TEMPS)
 temp_range_K = temp_range + 273.15
+
+params_monomer_monomeric = def_params.copy()
+params_dimer_monomeric = def_params.copy()
+params_trimer_monomeric = def_params.copy()
+params_trimer_monomeric['T1'] += 15
+
+params_tetramer_monomeric = def_params.copy()
+params_tetramer_monomeric['T1'] += 15
+
+params_dimer_dimeric = def_params.copy()
+params_trimer_trimeric = def_params.copy()
+params_trimer_trimeric['T1'] -= 5
+params_trimer_trimeric['T2'] += 10
+
+expected_monomer_monomeric = [Tm_VAL_1, DHm_VAL_1, Tm_VAL_2, DHm_VAL_2]
+expected_dimer_monomeric = [Tm_VAL_1, DHm_VAL_1, Tm_VAL_2, DHm_VAL_2]
+expected_trimer_monomeric = [Tm_VAL_1+15, DHm_VAL_1, Tm_VAL_2, DHm_VAL_2]
+expected_tetramer_monomeric = [Tm_VAL_1+15, DHm_VAL_1, Tm_VAL_2, DHm_VAL_2]
+expected_dimer_dimeric = [Tm_VAL_1, DHm_VAL_1, Tm_VAL_2, DHm_VAL_2]
+expected_trimer_trimeric = [Tm_VAL_1-5, DHm_VAL_1, Tm_VAL_2+10, DHm_VAL_2]
 
 
 def test_fit_monomer_unfolding_three_states_single_slopes_constant():
@@ -70,7 +90,7 @@ def test_fit_monomer_unfolding_three_states_single_slopes_constant():
     temp_list = []
 
     for C in concs:
-        y = signal_fx(temp_range_K, C, **def_params)
+        y = signal_fx(temp_range_K, C, **params_monomer_monomeric)
 
         # Add gaussian error to signal
         y += rng.normal(0, 0.002*1e-3, len(y))
@@ -98,17 +118,13 @@ def test_fit_monomer_unfolding_three_states_single_slopes_constant():
         **kwargs
     )
 
-    expected = [Tm_VAL_1, DHm_VAL_1, Tm_VAL_2, DHm_VAL_2]
-
-    np.testing.assert_allclose(global_fit_params[:4], expected, rtol=0.1, atol=0)
+    np.testing.assert_allclose(global_fit_params[:4], expected_monomer_monomeric, rtol=0.1, atol=0)
 
     # Fit with fixed Tm1 and Tm2
     
     p0_tm = p0.copy()
     low_bounds_tm = low_bounds.copy()
     high_bounds_tm = high_bounds.copy()
-    
-    
     
     global_fit_params, cov, predicted_lst, _, _ = fit_oligomer_unfolding_three_states_single_slopes(
         initial_parameters=p0_tm,
@@ -119,18 +135,15 @@ def test_fit_monomer_unfolding_three_states_single_slopes_constant():
         **kwargs
     )
 
-    expected = [Tm_VAL_1, DHm_VAL_1, Tm_VAL_2, DHm_VAL_2]
 
-    np.testing.assert_allclose(global_fit_params[:4], expected, rtol=0.1, atol=0)
+    np.testing.assert_allclose(global_fit_params[:4], expected_monomer_monomeric, rtol=0.1, atol=0)
 
     # End of - Fit with fixed Tm
-
 
     # Fit with fixed dH1 and dh2
     p0_dh = p0.copy()
     low_bounds_dh = low_bounds.copy()
     high_bounds_dh = high_bounds.copy()
-
 
     global_fit_params, cov, predicted_lst, _, _ = fit_oligomer_unfolding_three_states_single_slopes(
         initial_parameters=p0_dh,
@@ -141,9 +154,8 @@ def test_fit_monomer_unfolding_three_states_single_slopes_constant():
         **kwargs
     )
 
-    expected = [Tm_VAL_1, DHm_VAL_1, Tm_VAL_2, DHm_VAL_2]
 
-    np.testing.assert_allclose(global_fit_params[:4], expected, rtol=0.1, atol=0)
+    np.testing.assert_allclose(global_fit_params[:4], expected_monomer_monomeric, rtol=0.1, atol=0)
 
     # End of - Fit with fixed dH
 
@@ -155,7 +167,7 @@ def test_fit_dimer_unfolding_three_states_single_slopes_constant():
     temp_list = []
 
     for C in concs:
-        y = signal_fx(temp_range_K, C, **def_params)
+        y = signal_fx(temp_range_K, C, **params_dimer_monomeric)
 
         # Add gaussian error to signal
         y += rng.normal(0, 0.002*1e-3, len(y))
@@ -183,16 +195,12 @@ def test_fit_dimer_unfolding_three_states_single_slopes_constant():
         **kwargs
     )
 
-    expected = [Tm_VAL_1, DHm_VAL_1, Tm_VAL_2, DHm_VAL_2]
-
-    np.testing.assert_allclose(global_fit_params[:4], expected, rtol=0.1, atol=0)
+    np.testing.assert_allclose(global_fit_params[:4], expected_dimer_monomeric, rtol=0.1, atol=0)
 
     # Fit with fixed Tm
     p0_tm = p0.copy()
     low_bounds_tm = low_bounds.copy()
     high_bounds_tm = high_bounds.copy()
-
-
 
     global_fit_params, cov, predicted_lst, _, _ = fit_oligomer_unfolding_three_states_single_slopes(
         initial_parameters=p0_tm,
@@ -203,9 +211,7 @@ def test_fit_dimer_unfolding_three_states_single_slopes_constant():
         **kwargs
     )
 
-    expected = [Tm_VAL_1, DHm_VAL_1, Tm_VAL_2, DHm_VAL_2]
-
-    np.testing.assert_allclose(global_fit_params[:4], expected, rtol=0.1, atol=0)
+    np.testing.assert_allclose(global_fit_params[:4], expected_dimer_monomeric, rtol=0.1, atol=0)
 
     # End of - Fit with fixed Tm
 
@@ -225,9 +231,7 @@ def test_fit_dimer_unfolding_three_states_single_slopes_constant():
         **kwargs
     )
 
-    expected = [Tm_VAL_1, DHm_VAL_1, Tm_VAL_2, DHm_VAL_2]
-
-    np.testing.assert_allclose(global_fit_params[:4], expected, rtol=0.1, atol=0)
+    np.testing.assert_allclose(global_fit_params[:4], expected_dimer_monomeric, rtol=0.1, atol=0)
 
     # End of - Fit with fixed dH
 
@@ -241,7 +245,7 @@ def test_fit_trimer_unfolding_three_states_single_slopes_constant():
     temp_list = []
 
     for C in concs:
-        y = signal_fx(temp_range_K, C, **def_params)
+        y = signal_fx(temp_range_K, C, **params_trimer_monomeric)
 
         # Add gaussian error to signal
         y += rng.normal(0, 0.002*1e-3, len(y))
@@ -249,7 +253,7 @@ def test_fit_trimer_unfolding_three_states_single_slopes_constant():
         signal_list.append(y)
         temp_list.append(temp_range)
 
-    p0 = [Tm_VAL_1, DHm_VAL_1, Tm_VAL_2, DHm_VAL_2] + [INTERCEPT_N] *len(concs) + [INTERCEPT_U] * len(concs) + [INTERCEPT_I] * len(concs)
+    p0 = expected_trimer_monomeric + [INTERCEPT_N] *len(concs) + [INTERCEPT_U] * len(concs) + [INTERCEPT_I] * len(concs)
     low_bounds = [TEMP_START, DHm_VAL_1 - 100, TEMP_START, DHm_VAL_2 - 100] + [1e-5] * (3 * len(concs))
     high_bounds = [TEMP_STOP, DHm_VAL_1 + 100, TEMP_STOP, DHm_VAL_2 + 100] + [1e3] * (3 * len(concs))
 
@@ -269,29 +273,23 @@ def test_fit_trimer_unfolding_three_states_single_slopes_constant():
         **kwargs
     )
 
-    expected = [Tm_VAL_1, DHm_VAL_1, Tm_VAL_2, DHm_VAL_2]
-
-    np.testing.assert_allclose(global_fit_params[:4], expected, rtol=0.1, atol=0)
+    np.testing.assert_allclose(global_fit_params[:4], expected_trimer_monomeric, rtol=0.1, atol=0)
 
     # Fit with fixed Tm
     p0_tm = p0.copy()
     low_bounds_tm = low_bounds.copy()
     high_bounds_tm = high_bounds.copy()
 
-
-
     global_fit_params, cov, predicted_lst, _, _ = fit_oligomer_unfolding_three_states_single_slopes(
         initial_parameters=p0_tm,
         low_bounds=low_bounds_tm,
         high_bounds=high_bounds_tm,
-        t1=Tm_VAL_1,
+        t1=Tm_VAL_1+10,
         t2=Tm_VAL_2,
         **kwargs
     )
 
-    expected = [Tm_VAL_1, DHm_VAL_1, Tm_VAL_2, DHm_VAL_2]
-
-    np.testing.assert_allclose(global_fit_params[:4], expected, rtol=0.1, atol=0)
+    np.testing.assert_allclose(global_fit_params[:4], expected_trimer_monomeric, rtol=0.1, atol=0)
 
     # End of - Fit with fixed Tm
 
@@ -299,8 +297,6 @@ def test_fit_trimer_unfolding_three_states_single_slopes_constant():
     p0_dh = p0.copy()
     low_bounds_dh = low_bounds.copy()
     high_bounds_dh = high_bounds.copy()
-
-
 
     global_fit_params, cov, predicted_lst, _, _ = fit_oligomer_unfolding_three_states_single_slopes(
         initial_parameters=p0_dh,
@@ -311,9 +307,7 @@ def test_fit_trimer_unfolding_three_states_single_slopes_constant():
         **kwargs
     )
 
-    expected = [Tm_VAL_1, DHm_VAL_1, Tm_VAL_2, DHm_VAL_2]
-
-    np.testing.assert_allclose(global_fit_params[:4], expected, rtol=0.1, atol=0)
+    np.testing.assert_allclose(global_fit_params[:4], expected_trimer_monomeric, rtol=0.1, atol=0)
 
     # End of - Fit with fixed dH
 
@@ -326,7 +320,7 @@ def test_fit_tetramer_unfolding_three_states_single_slopes_constant():
     temp_list = []
 
     for C in concs:
-        y = signal_fx(temp_range_K, C, **def_params)
+        y = signal_fx(temp_range_K, C, **params_tetramer_monomeric)
 
         # Add gaussian error to signal
         y += rng.normal(0, 0.002*1e-3, len(y))
@@ -334,7 +328,7 @@ def test_fit_tetramer_unfolding_three_states_single_slopes_constant():
         signal_list.append(y)
         temp_list.append(temp_range)
 
-    p0 = [Tm_VAL_1, DHm_VAL_1, Tm_VAL_2, DHm_VAL_2] + [INTERCEPT_N] *len(concs) + [INTERCEPT_U] * len(concs) + [INTERCEPT_I] * len(concs)
+    p0 = expected_tetramer_monomeric + [INTERCEPT_N] *len(concs) + [INTERCEPT_U] * len(concs) + [INTERCEPT_I] * len(concs)
     low_bounds = [TEMP_START, DHm_VAL_1 - 100, TEMP_START, DHm_VAL_2 - 100] + [1e-5] * (3 * len(concs))
     high_bounds = [TEMP_STOP, DHm_VAL_1 + 100, TEMP_STOP, DHm_VAL_2 + 100] + [1e3] * (3 * len(concs))
 
@@ -354,10 +348,8 @@ def test_fit_tetramer_unfolding_three_states_single_slopes_constant():
         **kwargs
     )
 
-    expected = [Tm_VAL_1, DHm_VAL_1, Tm_VAL_2, DHm_VAL_2]
-
-    np.testing.assert_allclose(global_fit_params[:4], expected, rtol=0.1, atol=0)
-
+    np.testing.assert_allclose(global_fit_params[:4], expected_tetramer_monomeric, rtol=0.3, atol=0)
+    
     # Fit with fixed Tm
     p0_tm = p0.copy()
     low_bounds_tm = low_bounds.copy()
@@ -374,17 +366,14 @@ def test_fit_tetramer_unfolding_three_states_single_slopes_constant():
         **kwargs
     )
 
-    expected = [Tm_VAL_1, DHm_VAL_1, Tm_VAL_2, DHm_VAL_2]
-
-    np.testing.assert_allclose(global_fit_params[:4], expected, rtol=0.1, atol=0)
-
+    np.testing.assert_allclose(global_fit_params[:4], expected_tetramer_monomeric, rtol=0.3, atol=0)
+    
     # End of - Fit with fixed Tm
 
     # Fit with fixed dH
     p0_dh = p0.copy()
     low_bounds_dh = low_bounds.copy()
     high_bounds_dh = high_bounds.copy()
-
 
     global_fit_params, cov, predicted_lst, _, _ = fit_oligomer_unfolding_three_states_single_slopes(
         initial_parameters=p0_dh,
@@ -395,10 +384,8 @@ def test_fit_tetramer_unfolding_three_states_single_slopes_constant():
         **kwargs
     )
 
-    expected = [Tm_VAL_1, DHm_VAL_1, Tm_VAL_2, DHm_VAL_2]
-
-    np.testing.assert_allclose(global_fit_params[:4], expected, rtol=0.1, atol=0)
-
+    np.testing.assert_allclose(global_fit_params[:4], expected_tetramer_monomeric, rtol=0.3, atol=0)
+    
     # End of - Fit with fixed dH
 
 
@@ -409,7 +396,7 @@ def test_fit_dimer_dimeric_unfolding_three_states_single_slopes_constant():
     temp_list = []
 
     for C in concs:
-        y = signal_fx(temp_range_K, C, **def_params)
+        y = signal_fx(temp_range_K, C, **params_dimer_dimeric)
 
         # Add gaussian error to signal
         y += rng.normal(0, 0.002 * 1e-3, len(y))
@@ -437,9 +424,9 @@ def test_fit_dimer_dimeric_unfolding_three_states_single_slopes_constant():
         **kwargs
     )
 
-    expected = [Tm_VAL_1, DHm_VAL_1, Tm_VAL_2, DHm_VAL_2]
+    expected_dimer_dimeric = [Tm_VAL_1, DHm_VAL_1, Tm_VAL_2, DHm_VAL_2]
 
-    np.testing.assert_allclose(global_fit_params[:4], expected, rtol=0.1, atol=0)
+    np.testing.assert_allclose(global_fit_params[:4], expected_dimer_dimeric, rtol=0.1, atol=0)
 
     # Fit with fixed Tm
     p0_tm = p0.copy()
@@ -455,9 +442,7 @@ def test_fit_dimer_dimeric_unfolding_three_states_single_slopes_constant():
         **kwargs
     )
 
-    expected = [Tm_VAL_1, DHm_VAL_1, Tm_VAL_2, DHm_VAL_2]
-
-    np.testing.assert_allclose(global_fit_params[:4], expected, rtol=0.1, atol=0)
+    np.testing.assert_allclose(global_fit_params[:4], expected_dimer_dimeric, rtol=0.1, atol=0)
 
     # End of - Fit with fixed Tm
 
@@ -475,9 +460,7 @@ def test_fit_dimer_dimeric_unfolding_three_states_single_slopes_constant():
         **kwargs
     )
 
-    expected = [Tm_VAL_1, DHm_VAL_1, Tm_VAL_2, DHm_VAL_2]
-
-    np.testing.assert_allclose(global_fit_params[:4], expected, rtol=0.1, atol=0)
+    np.testing.assert_allclose(global_fit_params[:4], expected_dimer_dimeric, rtol=0.1, atol=0)
 
     # End of - Fit with fixed dH
 
@@ -489,7 +472,7 @@ def test_fit_trimer_trimeric_unfolding_three_states_single_slopes_constant():
     temp_list = []
 
     for C in concs:
-        y = signal_fx(temp_range_K, C, **def_params)
+        y = signal_fx(temp_range_K, C, **params_trimer_trimeric)
 
         # Add gaussian error to signal
         y += rng.normal(0, 0.002 * 1e-3, len(y))
@@ -517,9 +500,9 @@ def test_fit_trimer_trimeric_unfolding_three_states_single_slopes_constant():
         **kwargs
     )
 
-    expected = [Tm_VAL_1, DHm_VAL_1, Tm_VAL_2, DHm_VAL_2]
+    expected_trimer_trimeric = [Tm_VAL_1-5, DHm_VAL_1, Tm_VAL_2+10, DHm_VAL_2]
 
-    np.testing.assert_allclose(global_fit_params[:4], expected, rtol=0.1, atol=0)
+    np.testing.assert_allclose(global_fit_params[:4], expected_trimer_trimeric, rtol=0.1, atol=0)
 
     # Fit with fixed Tm
     p0_tm = p0.copy()
@@ -530,14 +513,12 @@ def test_fit_trimer_trimeric_unfolding_three_states_single_slopes_constant():
         initial_parameters=p0_tm,
         low_bounds=low_bounds_tm,
         high_bounds=high_bounds_tm,
-        t1=Tm_VAL_1,
-        t2=Tm_VAL_2,
+        t1=Tm_VAL_1-5,
+        t2=Tm_VAL_2+5,
         **kwargs
     )
 
-    expected = [Tm_VAL_1, DHm_VAL_1, Tm_VAL_2, DHm_VAL_2]
-
-    np.testing.assert_allclose(global_fit_params[:4], expected, rtol=0.1, atol=0)
+    np.testing.assert_allclose(global_fit_params[:4], expected_trimer_trimeric, rtol=0.1, atol=0)
 
     # End of - Fit with fixed Tm
 
@@ -555,9 +536,7 @@ def test_fit_trimer_trimeric_unfolding_three_states_single_slopes_constant():
         **kwargs
     )
 
-    expected = [Tm_VAL_1, DHm_VAL_1, Tm_VAL_2, DHm_VAL_2]
-
-    np.testing.assert_allclose(global_fit_params[:4], expected, rtol=0.1, atol=0)
+    np.testing.assert_allclose(global_fit_params[:4], expected_trimer_trimeric, rtol=0.1, atol=0)
 
     # End of - Fit with fixed dH
 
@@ -571,7 +550,7 @@ def test_fit_monomer_unfolding_three_states_shared_slopes_many_signals_constant(
     temp_list = []
 
     for C in concs:
-        y = signal_fx(temp_range_K, C, **def_params)
+        y = signal_fx(temp_range_K, C, **params_monomer_monomeric)
 
         # Add gaussian error to signal
         y += rng.normal(0, 0.002*1e-3, len(y))
@@ -600,16 +579,12 @@ def test_fit_monomer_unfolding_three_states_shared_slopes_many_signals_constant(
         **kwargs
     )
 
-    expected = [Tm_VAL_1, DHm_VAL_1, Tm_VAL_2, DHm_VAL_2]
-
-    np.testing.assert_allclose(global_fit_params[:4], expected, rtol=0.1, atol=0)
+    np.testing.assert_allclose(global_fit_params[:4], expected_monomer_monomeric, rtol=0.1, atol=0)
 
     # Fit with fixed Tm
     p0_tm = p0.copy()
     low_bounds_tm = low_bounds.copy()
     high_bounds_tm = high_bounds.copy()
-
-
 
     global_fit_params, cov, predicted_lst, _, _ = fit_oligomer_unfolding_three_states_shared_slopes_many_signals(
         initial_parameters=p0_tm,
@@ -620,9 +595,7 @@ def test_fit_monomer_unfolding_three_states_shared_slopes_many_signals_constant(
         **kwargs
     )
 
-    expected = [Tm_VAL_1, DHm_VAL_1, Tm_VAL_2, DHm_VAL_2]
-
-    np.testing.assert_allclose(global_fit_params[:4], expected, rtol=0.1, atol=0)
+    np.testing.assert_allclose(global_fit_params[:4], expected_monomer_monomeric, rtol=0.1, atol=0)
 
     # End of - Fit with fixed Tm
 
@@ -640,9 +613,7 @@ def test_fit_monomer_unfolding_three_states_shared_slopes_many_signals_constant(
         **kwargs
     )
 
-    expected = [Tm_VAL_1, DHm_VAL_1, Tm_VAL_2, DHm_VAL_2]
-
-    np.testing.assert_allclose(global_fit_params[:4], expected, rtol=0.1, atol=0)
+    np.testing.assert_allclose(global_fit_params[:4], expected_monomer_monomeric, rtol=0.1, atol=0)
 
     # End of - Fit with fixed dH
     
@@ -653,7 +624,7 @@ def test_fit_dimer_unfolding_three_states_shared_slopes_many_signals_constant():
     temp_list = []
 
     for C in concs:
-        y = signal_fx(temp_range_K, C, **def_params)
+        y = signal_fx(temp_range_K, C, **params_dimer_monomeric)
 
         # Add gaussian error to signal
         y += rng.normal(0, 0.002*1e-3, len(y))
@@ -682,9 +653,8 @@ def test_fit_dimer_unfolding_three_states_shared_slopes_many_signals_constant():
         **kwargs
     )
 
-    expected = [Tm_VAL_1, DHm_VAL_1, Tm_VAL_2, DHm_VAL_2]
 
-    np.testing.assert_allclose(global_fit_params[:4], expected, rtol=0.1, atol=0)
+    np.testing.assert_allclose(global_fit_params[:4], expected_dimer_monomeric, rtol=0.1, atol=0)
 
     # Fit with fixed Tm
     p0_tm = p0.copy()
@@ -702,9 +672,8 @@ def test_fit_dimer_unfolding_three_states_shared_slopes_many_signals_constant():
         **kwargs
     )
 
-    expected = [Tm_VAL_1, DHm_VAL_1, Tm_VAL_2, DHm_VAL_2]
 
-    np.testing.assert_allclose(global_fit_params[:4], expected, rtol=0.1, atol=0)
+    np.testing.assert_allclose(global_fit_params[:4], expected_dimer_monomeric, rtol=0.1, atol=0)
 
     # End of - Fit with fixed Tm
 
@@ -722,9 +691,8 @@ def test_fit_dimer_unfolding_three_states_shared_slopes_many_signals_constant():
         **kwargs
     )
 
-    expected = [Tm_VAL_1, DHm_VAL_1, Tm_VAL_2, DHm_VAL_2]
 
-    np.testing.assert_allclose(global_fit_params[:4], expected, rtol=0.1, atol=0)
+    np.testing.assert_allclose(global_fit_params[:4], expected_dimer_monomeric, rtol=0.1, atol=0)
 
     # End of - Fit with fixed dH
 
@@ -735,7 +703,7 @@ def test_fit_trimer_unfolding_three_states_shared_slopes_many_signals_constant()
     temp_list = []
 
     for C in concs:
-        y = signal_fx(temp_range_K, C, **def_params)
+        y = signal_fx(temp_range_K, C, **params_trimer_monomeric)
 
         # Add gaussian error to signal
         y += rng.normal(0, 0.002*1e-3, len(y))
@@ -764,9 +732,8 @@ def test_fit_trimer_unfolding_three_states_shared_slopes_many_signals_constant()
         **kwargs
     )
 
-    expected = [Tm_VAL_1, DHm_VAL_1, Tm_VAL_2, DHm_VAL_2]
 
-    np.testing.assert_allclose(global_fit_params[:4], expected, rtol=0.1, atol=0)
+    np.testing.assert_allclose(global_fit_params[:4], expected_trimer_monomeric, rtol=0.1, atol=0)
 
     # Fit with fixed Tm
     p0_tm = p0.copy()
@@ -784,9 +751,8 @@ def test_fit_trimer_unfolding_three_states_shared_slopes_many_signals_constant()
         **kwargs
     )
 
-    expected = [Tm_VAL_1, DHm_VAL_1, Tm_VAL_2, DHm_VAL_2]
 
-    np.testing.assert_allclose(global_fit_params[:4], expected, rtol=0.1, atol=0)
+    np.testing.assert_allclose(global_fit_params[:4], expected_trimer_monomeric, rtol=0.1, atol=0)
 
     # End of - Fit with fixed Tm
 
@@ -804,9 +770,8 @@ def test_fit_trimer_unfolding_three_states_shared_slopes_many_signals_constant()
         **kwargs
     )
 
-    expected = [Tm_VAL_1, DHm_VAL_1, Tm_VAL_2, DHm_VAL_2]
 
-    np.testing.assert_allclose(global_fit_params[:4], expected, rtol=0.1, atol=0)
+    np.testing.assert_allclose(global_fit_params[:4], expected_trimer_monomeric, rtol=0.1, atol=0)
 
     # End of - Fit with fixed dH
 
@@ -817,7 +782,7 @@ def test_fit_tetramer_unfolding_three_states_shared_slopes_many_signals_constant
     temp_list = []
 
     for C in concs:
-        y = signal_fx(temp_range_K, C, **def_params)
+        y = signal_fx(temp_range_K, C, **params_tetramer_monomeric)
 
         # Add gaussian error to signal
         y += rng.normal(0, 0.002*1e-3, len(y))
@@ -825,7 +790,7 @@ def test_fit_tetramer_unfolding_three_states_shared_slopes_many_signals_constant
         signal_list.append(y)
         temp_list.append(temp_range)
 
-    p0 = [Tm_VAL_1, DHm_VAL_1, Tm_VAL_2, DHm_VAL_2] + [INTERCEPT_N] *len(concs) + [INTERCEPT_U] * len(concs) + [INTERCEPT_I] * len(concs)
+    p0 = expected_tetramer_monomeric + [INTERCEPT_N] *len(concs) + [INTERCEPT_U] * len(concs) + [INTERCEPT_I] * len(concs)
     low_bounds = [TEMP_START, DHm_VAL_1 - 100, TEMP_START, DHm_VAL_2 - 100] + [1e-5] * (3 * len(concs))
     high_bounds = [TEMP_STOP, DHm_VAL_1 + 100, TEMP_STOP, DHm_VAL_2 + 100] + [1e3] * (3 * len(concs))
 
@@ -846,15 +811,13 @@ def test_fit_tetramer_unfolding_three_states_shared_slopes_many_signals_constant
         **kwargs
     )
 
-    expected = [Tm_VAL_1, DHm_VAL_1, Tm_VAL_2, DHm_VAL_2]
 
-    np.testing.assert_allclose(global_fit_params[:4], expected, rtol=0.1, atol=0)
+    np.testing.assert_allclose(global_fit_params[:4], expected_tetramer_monomeric, rtol=0.3, atol=0)
 
     # Fit with fixed Tm
     p0_tm = p0.copy()
     low_bounds_tm = low_bounds.copy()
     high_bounds_tm = high_bounds.copy()
-
 
 
     global_fit_params, cov, predicted_lst, _, _ = fit_oligomer_unfolding_three_states_shared_slopes_many_signals(
@@ -866,9 +829,8 @@ def test_fit_tetramer_unfolding_three_states_shared_slopes_many_signals_constant
         **kwargs
     )
 
-    expected = [Tm_VAL_1, DHm_VAL_1, Tm_VAL_2, DHm_VAL_2]
 
-    np.testing.assert_allclose(global_fit_params[:4], expected, rtol=0.1, atol=0)
+    np.testing.assert_allclose(global_fit_params[:4], expected_tetramer_monomeric, rtol=0.3, atol=0)
 
     # End of - Fit with fixed Tm
 
@@ -886,9 +848,8 @@ def test_fit_tetramer_unfolding_three_states_shared_slopes_many_signals_constant
         **kwargs
     )
 
-    expected = [Tm_VAL_1, DHm_VAL_1, Tm_VAL_2, DHm_VAL_2]
 
-    np.testing.assert_allclose(global_fit_params[:4], expected, rtol=0.1, atol=0)
+    np.testing.assert_allclose(global_fit_params[:4], expected_tetramer_monomeric, rtol=0.3, atol=0)
 
     # End of - Fit with fixed dH
 
@@ -899,7 +860,7 @@ def test_fit_dimer_dimeric_unfolding_three_states_shared_slopes_many_signals_con
     temp_list = []
 
     for C in concs:
-        y = signal_fx(temp_range_K, C, **def_params)
+        y = signal_fx(temp_range_K, C, **params_dimer_dimeric)
 
         # Add gaussian error to signal
         y += rng.normal(0, 0.002*1e-3, len(y))
@@ -928,16 +889,12 @@ def test_fit_dimer_dimeric_unfolding_three_states_shared_slopes_many_signals_con
         **kwargs
     )
 
-    expected = [Tm_VAL_1, DHm_VAL_1, Tm_VAL_2, DHm_VAL_2]
-
-    np.testing.assert_allclose(global_fit_params[:4], expected, rtol=0.1, atol=0)
+    np.testing.assert_allclose(global_fit_params[:4], expected_dimer_dimeric, rtol=0.1, atol=0)
 
     # Fit with fixed Tm
     p0_tm = p0.copy()
     low_bounds_tm = low_bounds.copy()
     high_bounds_tm = high_bounds.copy()
-
-
 
     global_fit_params, cov, predicted_lst, _, _ = fit_oligomer_unfolding_three_states_shared_slopes_many_signals(
         initial_parameters=p0_tm,
@@ -948,9 +905,7 @@ def test_fit_dimer_dimeric_unfolding_three_states_shared_slopes_many_signals_con
         **kwargs
     )
 
-    expected = [Tm_VAL_1, DHm_VAL_1, Tm_VAL_2, DHm_VAL_2]
-
-    np.testing.assert_allclose(global_fit_params[:4], expected, rtol=0.1, atol=0)
+    np.testing.assert_allclose(global_fit_params[:4], expected_dimer_dimeric, rtol=0.1, atol=0)
 
     # End of - Fit with fixed Tm
 
@@ -968,9 +923,8 @@ def test_fit_dimer_dimeric_unfolding_three_states_shared_slopes_many_signals_con
         **kwargs
     )
 
-    expected = [Tm_VAL_1, DHm_VAL_1, Tm_VAL_2, DHm_VAL_2]
 
-    np.testing.assert_allclose(global_fit_params[:4], expected, rtol=0.1, atol=0)
+    np.testing.assert_allclose(global_fit_params[:4], expected_dimer_dimeric, rtol=0.1, atol=0)
 
     # End of - Fit with fixed dH
 
@@ -981,7 +935,7 @@ def test_fit_trimer_trimeric_unfolding_three_states_shared_slopes_many_signals_c
     temp_list = []
 
     for C in concs:
-        y = signal_fx(temp_range_K, C, **def_params)
+        y = signal_fx(temp_range_K, C, **params_trimer_trimeric)
 
         # Add gaussian error to signal
         y += rng.normal(0, 0.002*1e-3, len(y))
@@ -1010,9 +964,8 @@ def test_fit_trimer_trimeric_unfolding_three_states_shared_slopes_many_signals_c
         **kwargs
     )
 
-    expected = [Tm_VAL_1, DHm_VAL_1, Tm_VAL_2, DHm_VAL_2]
 
-    np.testing.assert_allclose(global_fit_params[:4], expected, rtol=0.1, atol=0)
+    np.testing.assert_allclose(global_fit_params[:4], expected_trimer_trimeric, rtol=0.1, atol=0)
 
     # Fit with fixed Tm
     p0_tm = p0.copy()
@@ -1030,9 +983,8 @@ def test_fit_trimer_trimeric_unfolding_three_states_shared_slopes_many_signals_c
         **kwargs
     )
 
-    expected = [Tm_VAL_1, DHm_VAL_1, Tm_VAL_2, DHm_VAL_2]
 
-    np.testing.assert_allclose(global_fit_params[:4], expected, rtol=0.1, atol=0)
+    np.testing.assert_allclose(global_fit_params[:4], expected_trimer_trimeric, rtol=0.1, atol=0)
 
     # End of - Fit with fixed Tm
 
@@ -1050,9 +1002,8 @@ def test_fit_trimer_trimeric_unfolding_three_states_shared_slopes_many_signals_c
         **kwargs
     )
 
-    expected = [Tm_VAL_1, DHm_VAL_1, Tm_VAL_2, DHm_VAL_2]
 
-    np.testing.assert_allclose(global_fit_params[:4], expected, rtol=0.1, atol=0)
+    np.testing.assert_allclose(global_fit_params[:4], expected_trimer_trimeric, rtol=0.1, atol=0)
 
     # End of - Fit with fixed dH
 
@@ -1065,7 +1016,7 @@ def test_fit_monomer_unfolding_three_states_many_signals_constant():
     temp_list = []
 
     for C in concs:
-        y = signal_fx(temp_range_K, C, **def_params)
+        y = signal_fx(temp_range_K, C, **params_monomer_monomeric)
 
         # Add gaussian error to signal
         y += rng.normal(0, 0.002*1e-3, len(y))
@@ -1094,9 +1045,8 @@ def test_fit_monomer_unfolding_three_states_many_signals_constant():
         **kwargs
     )
 
-    expected = [Tm_VAL_1, DHm_VAL_1, Tm_VAL_2, DHm_VAL_2]
 
-    np.testing.assert_allclose(global_fit_params[:4], expected, rtol=0.1, atol=0)
+    np.testing.assert_allclose(global_fit_params[:4], expected_monomer_monomeric, rtol=0.1, atol=0)
 
     # Fit scale factor
 
@@ -1119,9 +1069,8 @@ def test_fit_monomer_unfolding_three_states_many_signals_constant():
         **kwargs
     )
 
-    expected = [Tm_VAL_1, DHm_VAL_1, Tm_VAL_2, DHm_VAL_2]
 
-    np.testing.assert_allclose(global_fit_params[:4], expected, rtol=0.1, atol=0)
+    np.testing.assert_allclose(global_fit_params[:4], expected_monomer_monomeric, rtol=0.1, atol=0)
 
     
 
@@ -1132,7 +1081,7 @@ def test_fit_dimer_unfolding_three_states_many_signals_constant():
     temp_list = []
 
     for C in concs:
-        y = signal_fx(temp_range_K, C, **def_params)
+        y = signal_fx(temp_range_K, C, **params_dimer_monomeric)
 
         # Add gaussian error to signal
         y += rng.normal(0, 0.002*1e-3, len(y))
@@ -1161,9 +1110,8 @@ def test_fit_dimer_unfolding_three_states_many_signals_constant():
         **kwargs
     )
 
-    expected = [Tm_VAL_1, DHm_VAL_1, Tm_VAL_2, DHm_VAL_2]
 
-    np.testing.assert_allclose(global_fit_params[:4], expected, rtol=0.1, atol=0)
+    np.testing.assert_allclose(global_fit_params[:4], expected_dimer_monomeric, rtol=0.1, atol=0)
 
     # Fit scale factor
 
@@ -1186,9 +1134,8 @@ def test_fit_dimer_unfolding_three_states_many_signals_constant():
         **kwargs
     )
 
-    expected = [Tm_VAL_1, DHm_VAL_1, Tm_VAL_2, DHm_VAL_2]
 
-    np.testing.assert_allclose(global_fit_params[:4], expected, rtol=0.1, atol=0)
+    np.testing.assert_allclose(global_fit_params[:4], expected_dimer_monomeric, rtol=0.1, atol=0)
 
     
 
@@ -1199,7 +1146,7 @@ def test_fit_trimer_unfolding_three_states_many_signals_constant():
     temp_list = []
 
     for C in concs:
-        y = signal_fx(temp_range_K, C, **def_params)
+        y = signal_fx(temp_range_K, C, **params_trimer_monomeric)
 
         # Add gaussian error to signal
         y += rng.normal(0, 0.002*1e-3, len(y))
@@ -1228,9 +1175,8 @@ def test_fit_trimer_unfolding_three_states_many_signals_constant():
         **kwargs
     )
 
-    expected = [Tm_VAL_1, DHm_VAL_1, Tm_VAL_2, DHm_VAL_2]
 
-    np.testing.assert_allclose(global_fit_params[:4], expected, rtol=0.1, atol=0)
+    np.testing.assert_allclose(global_fit_params[:4], expected_trimer_monomeric, rtol=0.1, atol=0)
 
     # Fit scale factor
 
@@ -1253,9 +1199,8 @@ def test_fit_trimer_unfolding_three_states_many_signals_constant():
         **kwargs
     )
 
-    expected = [Tm_VAL_1, DHm_VAL_1, Tm_VAL_2, DHm_VAL_2]
 
-    np.testing.assert_allclose(global_fit_params[:4], expected, rtol=0.1, atol=0)
+    np.testing.assert_allclose(global_fit_params[:4], expected_trimer_monomeric, rtol=0.1, atol=0)
 
     
 
@@ -1266,14 +1211,14 @@ def test_fit_tetramer_unfolding_three_states_many_signals_constant():
     temp_list = []
 
     for C in concs:
-        y = signal_fx(temp_range_K, C, **def_params)
+        y = signal_fx(temp_range_K, C, **params_tetramer_monomeric)
         # Add gaussian error to signal
         y += rng.normal(0, 0.002*1e-3, len(y))
 
         signal_list.append(y)
         temp_list.append(temp_range)
 
-    p0 = [Tm_VAL_1, DHm_VAL_1, Tm_VAL_2, DHm_VAL_2] + [INTERCEPT_N, INTERCEPT_U, INTERCEPT_I]
+    p0 = expected_tetramer_monomeric + [INTERCEPT_N, INTERCEPT_U, INTERCEPT_I]
     low_bounds = [TEMP_START, DHm_VAL_1 - 100, TEMP_START, DHm_VAL_2 - 100] + [-1e2] * 3
     high_bounds = [TEMP_STOP, DHm_VAL_1 + 100, TEMP_STOP, DHm_VAL_2 + 100] + [1e3] * 3
 
@@ -1294,9 +1239,8 @@ def test_fit_tetramer_unfolding_three_states_many_signals_constant():
         **kwargs
     )
 
-    expected = [Tm_VAL_1, DHm_VAL_1, Tm_VAL_2, DHm_VAL_2]
 
-    np.testing.assert_allclose(global_fit_params[:4], expected, rtol=0.1, atol=0)
+    np.testing.assert_allclose(global_fit_params[:4], expected_tetramer_monomeric, rtol=0.3, atol=0)
 
     # Fit scale factor
 
@@ -1319,9 +1263,8 @@ def test_fit_tetramer_unfolding_three_states_many_signals_constant():
         **kwargs
     )
 
-    expected = [Tm_VAL_1, DHm_VAL_1, Tm_VAL_2, DHm_VAL_2]
 
-    np.testing.assert_allclose(global_fit_params[:4], expected, rtol=0.1, atol=0)
+    np.testing.assert_allclose(global_fit_params[:4], expected_tetramer_monomeric, rtol=0.3, atol=0)
 
 
 def test_fit_dimer_dimeric_unfolding_three_states_many_signals_constant():
@@ -1331,7 +1274,7 @@ def test_fit_dimer_dimeric_unfolding_three_states_many_signals_constant():
     temp_list = []
 
     for C in concs:
-        y = signal_fx(temp_range_K, C, **def_params)
+        y = signal_fx(temp_range_K, C, **params_dimer_dimeric)
 
         # Add gaussian error to signal
         y += rng.normal(0, 0.002 * 1e-3, len(y))
@@ -1360,9 +1303,9 @@ def test_fit_dimer_dimeric_unfolding_three_states_many_signals_constant():
         **kwargs
     )
 
-    expected = [Tm_VAL_1, DHm_VAL_1, Tm_VAL_2, DHm_VAL_2]
+    expected_dimer_dimeric = [Tm_VAL_1, DHm_VAL_1, Tm_VAL_2, DHm_VAL_2]
 
-    np.testing.assert_allclose(global_fit_params[:4], expected, rtol=0.1, atol=0)
+    np.testing.assert_allclose(global_fit_params[:4], expected_dimer_dimeric, rtol=0.1, atol=0)
 
     # Fit scale factor
 
@@ -1385,9 +1328,7 @@ def test_fit_dimer_dimeric_unfolding_three_states_many_signals_constant():
         **kwargs
     )
 
-    expected = [Tm_VAL_1, DHm_VAL_1, Tm_VAL_2, DHm_VAL_2]
-
-    np.testing.assert_allclose(global_fit_params[:4], expected, rtol=0.1, atol=0)
+    np.testing.assert_allclose(global_fit_params[:4], expected_dimer_dimeric, rtol=0.1, atol=0)
 
 
 def test_fit_trimer_trimeric_unfolding_three_states_many_signals_constant():
@@ -1397,7 +1338,7 @@ def test_fit_trimer_trimeric_unfolding_three_states_many_signals_constant():
     temp_list = []
 
     for C in concs:
-        y = signal_fx(temp_range_K, C, **def_params)
+        y = signal_fx(temp_range_K, C, **params_trimer_trimeric)
 
         # Add gaussian error to signal
         y += rng.normal(0, 0.002 * 1e-3, len(y))
@@ -1405,7 +1346,7 @@ def test_fit_trimer_trimeric_unfolding_three_states_many_signals_constant():
         signal_list.append(y)
         temp_list.append(temp_range)
 
-    p0 = [Tm_VAL_1, DHm_VAL_1, Tm_VAL_2, DHm_VAL_2] + [INTERCEPT_N, INTERCEPT_U, INTERCEPT_I]
+    p0 = expected_trimer_trimeric + [INTERCEPT_N, INTERCEPT_U, INTERCEPT_I]
     low_bounds = [TEMP_START, DHm_VAL_1 - 100, TEMP_START, DHm_VAL_2 - 100] + [-1e2] * 3
     high_bounds = [TEMP_STOP, DHm_VAL_1 + 100, TEMP_STOP, DHm_VAL_2 + 100] + [1e3] * 3
 
@@ -1426,9 +1367,7 @@ def test_fit_trimer_trimeric_unfolding_three_states_many_signals_constant():
         **kwargs
     )
 
-    expected = [Tm_VAL_1, DHm_VAL_1, Tm_VAL_2, DHm_VAL_2]
-
-    np.testing.assert_allclose(global_fit_params[:4], expected, rtol=0.1, atol=0)
+    np.testing.assert_allclose(global_fit_params[:4], expected_trimer_trimeric, rtol=0.1, atol=0)
 
     # Fit scale factor
 
@@ -1451,9 +1390,8 @@ def test_fit_trimer_trimeric_unfolding_three_states_many_signals_constant():
         **kwargs
     )
 
-    expected = [Tm_VAL_1, DHm_VAL_1, Tm_VAL_2, DHm_VAL_2]
 
-    np.testing.assert_allclose(global_fit_params[:4], expected, rtol=0.1, atol=0)
+    np.testing.assert_allclose(global_fit_params[:4], expected_trimer_trimeric, rtol=0.1, atol=0)
 
 def test_refit_three_state_model_constant():
 

@@ -692,11 +692,10 @@ class ThermalOligomer(Sample):
                 raise ValueError('CpTh must be large enough for fitting. If you do not wish to fit the Cp values, omit this parameter.')
 
             # Parameters for T1, T2, will be added later via gridsearch
-            p0 = [0, 250, 0, 250, self.Cp0]
+            p0 = [0, 200, 0, 200, self.Cp0]
 
         else:
-            p0 = [0, 250, 0, 250, 0]
-
+            p0 = [0, 200, 0, 200, 0]
 
         params_names = [
             'Tm1 (°C)',
@@ -787,7 +786,7 @@ class ThermalOligomer(Sample):
             tm1_lower = 15
             tm1_upper = self.user_max_temp + 20
 
-            tm2_lower = 15
+            tm2_lower = 30
             tm2_upper = self.user_max_temp + 20
 
         low_bounds[0] = tm1_lower
@@ -810,10 +809,19 @@ class ThermalOligomer(Sample):
             p0[3] = adjust_value_to_interval(p0[3], dh2_lower, dh2_upper, 1)
 
         else:
-            dh1_lower = 10
+            # Set dh1_lower 30 for monomer, 50 for dimer, 70 for trimer and 90 for tetramer, and dh1_upper to 500 for all
+            lower_value = 30
+            if "Dimer" in self.model:
+                lower_value = 50
+            elif "Trimer" in self.model:
+                lower_value = 70
+            elif "Tetramer" in self.model:
+                lower_value = 90
+
+            dh1_lower = lower_value
             dh1_upper = 500
 
-            dh2_lower = 10
+            dh2_lower = lower_value
             dh2_upper = 500
 
         low_bounds[1] = dh1_lower
@@ -837,9 +845,9 @@ class ThermalOligomer(Sample):
 
         else:
 
-            cp_lower, cp_upper = 0.1, CpTh - 0.3
+            cp_lower, cp_upper = 0.1, CpTh - 0.4
 
-            low_bounds[4] = cp_lower
+            low_bounds[4]  = cp_lower
             high_bounds[4] = cp_upper
 
             # Verify that the Cp initial guess is within the user-defined limits
@@ -851,13 +859,11 @@ class ThermalOligomer(Sample):
 
         signal_fx = map_three_state_model_to_signal_fx(self.model)
 
-        has_nmeric_intermediate = not "monomeric_intermediate" in self.model.lower()
-
         if t1_init != 0:
-            p0[0], low_bounds[0], high_bounds[0] = t1_init, np.max([t1_init - 15, 0]), t1_init + 20
+            p0[0], low_bounds[0], high_bounds[0] = t1_init, np.max([t1_init - 15, 20]), t1_init + 20
 
         if t2_init != 0:
-            p0[2], low_bounds[2], high_bounds[2] = t2_init, np.max([t2_init - 15, 0]), t2_init + 20
+            p0[2], low_bounds[2], high_bounds[2] = t2_init, np.max([t2_init - 15, 20]), t2_init + 20
 
         kwargs = {
             'oligomer_concentrations': self.oligomer_concentrations_expanded,
@@ -872,23 +878,17 @@ class ThermalOligomer(Sample):
 
         fit_fx = fit_oligomer_unfolding_three_states_single_slopes
 
-        step = 6
-        num_rows = len(self.oligomer_concentrations)
-
-        if num_rows > 3:
-            step += 2
-        if num_rows > 4:
-            step += 2
+        step = 7
 
         if t1_init == 0 or t2_init == 0:
 
             if self.limited_tm:
                 test_T1s = np.arange(np.max([tm1_lower, 20]), tm1_upper, step)
-                test_T2s = np.arange(np.max([tm2_lower, 20]) + step, tm2_upper, step)
+                test_T2s = np.arange(np.max([tm2_lower, 35]) + step, tm2_upper, step)
 
             else:
-                test_T1s = np.arange(np.max([self.global_min_temp + 10, 20]), self.global_max_temp - 20*has_nmeric_intermediate, step)
-                test_T2s = np.arange(np.max([self.global_min_temp + 10, 20]) + step, self.global_max_temp + 5, step)
+                test_T1s = np.arange(np.max([self.global_min_temp + 10, 20]), self.global_max_temp, step)
+                test_T2s = np.arange(np.max([self.global_min_temp + 20, 20]) + step, self.global_max_temp + step, step)
 
             if t1_init != 0:
                 test_T1s = np.array([t1_init])
@@ -900,6 +900,9 @@ class ThermalOligomer(Sample):
 
             df = pd.DataFrame(combinations, columns=['t1', 't2'])
 
+            # Remove all combinations where t1 is 30 degrees higher than t2
+            df = df[~(df['t1'] - df['t2'] >= 30)]
+
             df_tm = pd.DataFrame(np.zeros_like(combinations), columns=['t1', 't2'], dtype=float)
             df_dh = pd.DataFrame(np.zeros_like(combinations), columns=['dh1', 'dh2'], dtype=float)
 
@@ -910,10 +913,13 @@ class ThermalOligomer(Sample):
             kwargs['list_of_signals'] = self.signal_lst_expanded_subset
 
             for index, row in df.iterrows():
+
                 kwargs['t1'] = row['t1']
                 kwargs['t2'] = row['t2']
 
-                fit_params, cov, pred, result, minimizer = fit_oligomer_unfolding_three_states_single_slopes(**kwargs)
+                fit_params, cov, pred, result, minimizer = fit_oligomer_unfolding_three_states_single_slopes(
+                    **kwargs,
+                    max_nfev=6000) # We need to limit max_nfev for a faster initial grid search
  
                 #using the fitted parameters as a base for fitting
                 df_tm.iloc[index, 0] = fit_params[0]
@@ -933,15 +939,17 @@ class ThermalOligomer(Sample):
             dh1_init, dh2_init = df_dh['dh1'][idx], df_dh['dh2'][idx]
             p0[1], p0[3] = dh1_init, dh2_init
 
-            low_bounds[0], low_bounds[2] = t1_init - 15, t2_init - 15
+            low_bounds[0], low_bounds[2] = t1_init - 14, t2_init - 14
             high_bounds[0], high_bounds[2] = t1_init + 18, t2_init + 18
+
+            low_bounds[1], low_bounds[3] = np.max([dh1_init - 100, 30]), np.max([dh2_init - 100, 30])
+            high_bounds[1], high_bounds[3] = dh1_init + 150, dh2_init + 150
 
             kwargs['initial_parameters'] = p0
             kwargs['low_bounds'] = low_bounds
             kwargs['high_bounds'] = high_bounds
             kwargs['t1'] = None
             kwargs['t2'] = None
-
 
         # Now use the whole dataset
         kwargs['list_of_temperatures'] = self.temp_lst_expanded
@@ -966,7 +974,7 @@ class ThermalOligomer(Sample):
             result=result,
             minimizer=minimizer,
             fit_m_value=False,
-            three_state_model=True,
+            three_state_model=True
         )
 
         rel_errors = relative_errors(global_fit_params, cov)
