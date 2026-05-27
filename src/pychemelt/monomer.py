@@ -28,7 +28,8 @@ from .utils.processing import (
     re_arrange_predictions,
     subset_data,
     transform_to_list,
-    ci_dict_to_summary_df
+    ci_dict_to_summary_df,
+    re_arrange_loo_initial_params
 )
 
 from .utils.fitting import (
@@ -1204,14 +1205,10 @@ class Monomer(Sample):
 
         """
         Perform a leave-one-out cross-validation by fitting the model multiple times, each time leaving out one of the datasets (signal-temperature pairs).
+        If we selected two signals, such as 350nm and 330nm, we leave two datasets out at a time.
         """
 
-        kwargs = deepcopy(self.kwargs_fit) # We need a deep copy to avoid problems with modifying the original kwargs in place across iterations
         fit_fx = self.fit_fx
-        
-        kwargs['initial_parameters'] = self.global_fit_params
-        kwargs['low_bounds']         = self.low_bounds
-        kwargs['high_bounds']        = self.high_bounds
 
         Tms = []
         DHs = []
@@ -1219,38 +1216,86 @@ class Monomer(Sample):
         m0s = []
 
         n = len(self.signal_lst_expanded)
+        # Correct by the number of signals
+        n_corr = int(n / self.nr_signals)
 
-        for i in range(n):
+        for i in range(n_corr):
 
-            kwargs['list_of_temperatures'] = self.temp_lst_expanded[:i] + self.temp_lst_expanded[i+1:]
-            kwargs['list_of_signals'] = self.signal_lst_expanded[:i] + self.signal_lst_expanded[i+1:]
-            kwargs['denaturant_concentrations'] = np.delete(self.denaturant_concentrations_expanded, i)
+            kwargs = deepcopy(self.kwargs_fit) # We need a deep copy to avoid problems with modifying the original kwargs in place across iterations
 
+            i_to_exclude = [i]
+
+            if n_corr < n:
+
+                # If we have more than one signal, we need to exclude the corresponding datasets for the other signals as well
+                for signal_id in range(1, self.nr_signals):
+                    i_to_exclude.append(i + signal_id * n_corr)
+
+            loo_temperature_list = [temp for j, temp in enumerate(self.temp_lst_expanded) if j not in i_to_exclude]
+            loo_signal_list = [signal for j, signal in enumerate(self.signal_lst_expanded) if j not in i_to_exclude]
+            loo_denaturant_concentrations = np.delete(self.denaturant_concentrations_expanded, i_to_exclude)
+            
+            kwargs['list_of_temperatures']      = loo_temperature_list
+            kwargs['list_of_signals']           = loo_signal_list
+            kwargs['denaturant_concentrations'] = loo_denaturant_concentrations
+            
+            # Now we need to adjust the initial parameters, low bounds and high bounds to exclude the parameters corresponding to the left-out dataset(s)
+
+            # Case 1: We have a global fit with local baselines and local slopes
+            id_start = 3 + self.fit_m_dep + (self.cp_value is None)
+
+            if not self.global_global_fit_done:
+                model = 'global'
+            elif self.global_global_fit_done and not self.global_global_global_fit_done:
+                model = 'global_global'
+            else:                
+                model = 'global_global_global'
+
+            params_loo, low_bounds_loo, high_bounds_loo = re_arrange_loo_initial_params(
+                model,
+                self.native_baseline_type,
+                self.unfolded_baseline_type,
+                i,
+                id_start,
+                self.global_fit_params,
+                self.low_bounds,
+                self.high_bounds,
+                self.nr_signals,
+                n_corr)
+
+            kwargs['initial_parameters'] = params_loo
+            kwargs['low_bounds'] = low_bounds_loo
+            kwargs['high_bounds'] = high_bounds_loo
+
+            # Edit the signal IDs for global-global and global-global-global fits, if they are done, to exclude the left-out dataset(s)
+            if self.global_global_global_fit_done:
+
+                loo_signal_ids = np.delete(self.signal_ids, i_to_exclude)
+                kwargs['signal_ids'] = loo_signal_ids
+            
             # Check if we have a global global global fit with scale factor, and in that case we need to adjust the scale_factor_exclude_ids 
-            if self.model_scale_factor and self.global_global_global_fit_done:
+            if self.model_scale_factor and model == 'global_global_global':
                 
                 # We need to create a new list to allow modifications. Read the original list from the kwargs to avoid modifying it in place across iterations
                 scale_factor_exclude_ids = [x for x in self.kwargs_fit.get('scale_factor_exclude_ids')] 
 
+                if i in scale_factor_exclude_ids:
+                    scale_factor_exclude_ids.remove(i)
+
                 for j, sf in enumerate(scale_factor_exclude_ids):
 
-                    # If the scale factor ID is the same as i, we need to remove it
-                    if sf == i:
-                        scale_factor_exclude_ids.pop(j)
-                        break
-
                     # If the scale factor ID is greater than i, we need to decrease it by 1, because we are removing one dataset before it
-                    elif sf > i:
+                    if sf > i:
                         scale_factor_exclude_ids[j] -= 1
-                    
-                    # If the scale factor ID is less than i, we don't need to do anything
-                    ####
+
+                    # If the scale factor ID is less than i, we don't need to do anything                    
 
                 kwargs['scale_factor_exclude_ids'] = scale_factor_exclude_ids
             
             global_fit_params, _, _, _, _ = fit_fx(**kwargs)
 
             Tm = global_fit_params[0]
+
             low_bound_Tm = self.low_bounds[0] # Make sure to compare in Kelvin units
             high_bound_Tm = self.high_bounds[0] # Make sure to compare in Kelvin units
 
@@ -1296,21 +1341,21 @@ class Monomer(Sample):
         
         params.append('m0')
 
-        loo_values = [np.mean(Tms), np.mean(DHs)]
+        loo_values = [np.median(Tms), np.median(DHs)]
         if self.cp_value is None:
-            loo_values.append(np.mean(Cps))
-        loo_values.append(np.mean(m0s))
+            loo_values.append(np.median(Cps))
+        loo_values.append(np.median(m0s))
 
-        loo_std = [np.std(Tms), np.std(DHs)]
+        loo_iqr = [np.percentile(Tms, 75) - np.percentile(Tms, 25), np.percentile(DHs, 75) - np.percentile(DHs, 25)]
         if self.cp_value is None:
-            loo_std.append(np.std(Cps))
-        loo_std.append(np.std(m0s))
+            loo_iqr.append(np.percentile(Cps, 75) - np.percentile(Cps, 25))
+        loo_iqr.append(np.percentile(m0s, 75) - np.percentile(m0s, 25))
 
         if n == 0:
             self.loo_df = pd.DataFrame({
                 'Parameter': params,
-                'LOO_Mean': [np.nan for _ in params],
-                'LOO_Std': [np.nan for _ in params],
+                'LOO_Median': [np.nan for _ in params],
+                'LOO_IQR': [np.nan for _ in params],
                 'N fits': [0 for _ in params]
             })
             raise ValueError("All leave-one-out fits were rejected based on (thermodynamic) parameter bounds. "
@@ -1319,8 +1364,8 @@ class Monomer(Sample):
 
         self.loo_df = pd.DataFrame({
             'Parameter': params,
-            'Leave_one_out_mean': loo_values,
-            'Leave_one_out_std': loo_std,
+            'Leave_one_out_median': loo_values,
+            'Leave_one_out_iqr': loo_iqr,
             'N fits': n
         })
 

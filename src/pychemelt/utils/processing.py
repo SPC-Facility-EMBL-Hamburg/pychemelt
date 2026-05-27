@@ -49,7 +49,8 @@ __all__ = [
     'are_all_strings_numeric',
     'is_float',
     'transform_to_list',
-    'ci_dict_to_summary_df'
+    'ci_dict_to_summary_df',
+    're_arrange_loo_initial_params'
 ]
 
 def transform_to_list(element_or_list):
@@ -889,3 +890,78 @@ def ci_dict_to_summary_df(ci_dict,percentage=0.95):
         })
 
     return pd.DataFrame(rows)
+
+def re_arrange_loo_initial_params(
+        model,
+        native_baseline_type,
+        unfolded_baseline_type,
+        i,
+        id_start,
+        params,
+        low_bounds,
+        high_bounds,
+        nr_signals,
+        n_corr):
+
+    # For the global-global-global model, skip the arrangement, because all parameters are shared and there are no parameters to exclude
+    if model == 'global_global_global':
+        return params, low_bounds, high_bounds
+
+    id_to_exclude = []
+
+    # Here, we have one intercept term per dataset, 
+    # maybe one slope/pre exponential term per dataset
+    # and maybe one quadratic/exponential term per dataset
+
+    # The terms are in this order, intercepts native, intercepts unfolded, slopes/pre exponential native, slopes/pre exponential unfolded, quadratic/exponential native, quadratic/exponential unfolded           
+    for j in range(nr_signals):
+    
+        # Exclude the intercept terms for the global and global-global models
+        factor = j * n_corr + i 
+
+        id_native_intercept   = factor
+        id_unfolded_intercept = id_native_intercept + nr_signals * n_corr
+
+        id_to_exclude.append(id_native_intercept)
+        id_to_exclude.append(id_unfolded_intercept)
+
+        native_baseline_has_linear_term   = native_baseline_type in ['linear', 'quadratic','exponential']
+        unfolded_baseline_has_linear_term = unfolded_baseline_type in ['linear', 'quadratic','exponential']
+
+        # Only exclude slope terms for the global model, because the global-global and global-global-global have unique shared parameters per signal
+        if model == 'global':
+        
+            native_baseline_has_quadratic_term   = native_baseline_type in ['quadratic','exponential']
+            unfolded_baseline_has_quadratic_term = unfolded_baseline_type in ['quadratic','exponential']
+
+            if native_baseline_has_linear_term:
+
+                id_native_slope = 2 * nr_signals * n_corr + factor
+                id_to_exclude.append(id_native_slope)
+
+            if unfolded_baseline_has_linear_term:
+
+                slope_u_start = (2 + native_baseline_has_linear_term) * nr_signals * n_corr
+                id_unfolded_slope = slope_u_start + factor
+                id_to_exclude.append(id_unfolded_slope)
+
+            if native_baseline_has_quadratic_term:
+
+                quad_start = (2 + native_baseline_has_linear_term + unfolded_baseline_has_linear_term) * nr_signals * n_corr
+                id_native_quadratic = quad_start + factor
+                id_to_exclude.append(id_native_quadratic)
+
+            if unfolded_baseline_has_quadratic_term:
+
+                quad_u_start = (2 + native_baseline_has_linear_term + unfolded_baseline_has_linear_term + native_baseline_has_quadratic_term) * nr_signals * n_corr
+                id_unfolded_quadratic = quad_u_start + factor
+                id_to_exclude.append(id_unfolded_quadratic)
+
+    id_to_exclude = [x + id_start for x in id_to_exclude]
+
+    # Exclude the parameters corresponding to the left-out dataset(s)
+    params = np.delete(params, id_to_exclude)
+    low_bounds = np.delete(low_bounds, id_to_exclude)
+    high_bounds = np.delete(high_bounds, id_to_exclude)
+
+    return params, low_bounds, high_bounds
