@@ -1341,31 +1341,31 @@ class Monomer(Sample):
         
         params.append('m0')
 
-        loo_values = [np.median(Tms), np.median(DHs)]
-        if self.cp_value is None:
-            loo_values.append(np.median(Cps))
-        loo_values.append(np.median(m0s))
-
-        loo_iqr = [np.percentile(Tms, 75) - np.percentile(Tms, 25), np.percentile(DHs, 75) - np.percentile(DHs, 25)]
-        if self.cp_value is None:
-            loo_iqr.append(np.percentile(Cps, 75) - np.percentile(Cps, 25))
-        loo_iqr.append(np.percentile(m0s, 75) - np.percentile(m0s, 25))
-
         if n == 0:
             self.loo_df = pd.DataFrame({
                 'Parameter': params,
-                'LOO_Median': [np.nan for _ in params],
-                'LOO_IQR': [np.nan for _ in params],
+                'LOO_Mean': [np.nan for _ in params],
+                'LOO_Std': [np.nan for _ in params],
                 'N fits': [0 for _ in params]
             })
             raise ValueError("All leave-one-out fits were rejected based on (thermodynamic) parameter bounds. "
                              "In other words, the fitted parameters (Tm, DH, Cp, m-value) were too close to the specified bounds in all fits."
                              "Please check the bounds, model, and the data quality.")
 
+        loo_values = [np.mean(Tms), np.mean(DHs)]
+        if self.cp_value is None:
+            loo_values.append(np.mean(Cps))
+        loo_values.append(np.mean(m0s))
+
+        loo_std = [np.std(Tms), np.std(DHs)]
+        if self.cp_value is None:
+            loo_std.append(np.std(Cps))
+        loo_std.append(np.std(m0s))
+
         self.loo_df = pd.DataFrame({
             'Parameter': params,
-            'Leave_one_out_median': loo_values,
-            'Leave_one_out_iqr': loo_iqr,
+            'Leave_one_out_mean': loo_values,
+            'Leave_one_out_std': loo_std,
             'N fits': n
         })
 

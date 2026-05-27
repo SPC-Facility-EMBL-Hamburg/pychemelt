@@ -52,7 +52,7 @@ def_params_signal_B = {
 }
 
 EXPECTED = [Tm, DHm, Cp0, m0]
-TOLERANCES = [x/10 for x in EXPECTED]
+TOLERANCES = [x/50 for x in EXPECTED] # Two percent tolerance for all parameters
 
 concs = [0.1*(1.5**i) for i in range(10)] 
 
@@ -138,11 +138,11 @@ def test_fit_thermal_unfolding_global():
     # Verify that each TRUE parameter value is within the confidence interval of the LOO CV results
     for i, value in enumerate(EXPECTED):
 
-        # Second column is LOO median, third column is LOO IQR
-        loo_med = pychem_sim.loo_df.iloc[i,1]
-        loo_iqr = pychem_sim.loo_df.iloc[i,2]
-        lower_bound = (loo_med - 2*loo_iqr)
-        upper_bound = (loo_med + 2*loo_iqr)
+        # Second column is LOO mean, third column is LOO std
+        loo_mean = pychem_sim.loo_df.iloc[i,1]
+        loo_std = pychem_sim.loo_df.iloc[i,2]
+        lower_bound = (loo_mean - 2*loo_std)
+        upper_bound = (loo_mean + 2*loo_std)
 
         # Find if intervals overalap, based on expected and tolerance
         tol = TOLERANCES[i]
@@ -158,11 +158,11 @@ def test_fit_thermal_unfolding_global_global():
     # Verify that each TRUE parameter value is within the confidence interval of the LOO CV results
     for i, value in enumerate(EXPECTED):
 
-        # Second column is LOO median, third column is LOO IQR
-        loo_med = pychem_sim.loo_df.iloc[i,1]
-        loo_iqr = pychem_sim.loo_df.iloc[i,2]
-        lower_bound = (loo_med - 2*loo_iqr)
-        upper_bound = (loo_med + 2*loo_iqr)
+        # Second column is LOO mean, third column is LOO std
+        loo_mean = pychem_sim.loo_df.iloc[i,1]
+        loo_std = pychem_sim.loo_df.iloc[i,2]
+        lower_bound = (loo_mean - 2*loo_std)
+        upper_bound = (loo_mean + 2*loo_std)
 
         # Find if intervals overalap, based on expected and tolerance
         tol = TOLERANCES[i]
@@ -178,11 +178,11 @@ def test_fit_thermal_unfolding_global_global_global():
     # Verify that each TRUE parameter value is within the confidence interval of the LOO CV results
     for i, value in enumerate(EXPECTED):
 
-        # Second column is LOO median, third column is LOO IQR
-        loo_med = pychem_sim.loo_df.iloc[i,1]
-        loo_iqr = pychem_sim.loo_df.iloc[i,2]
-        lower_bound = (loo_med - 2*loo_iqr)
-        upper_bound = (loo_med + 2*loo_iqr)
+        # Second column is LOO mean, third column is LOO std
+        loo_mean = pychem_sim.loo_df.iloc[i,1]
+        loo_std = pychem_sim.loo_df.iloc[i,2]
+        lower_bound = (loo_mean - 2*loo_std)
+        upper_bound = (loo_mean + 2*loo_std)
 
         # Find if intervals overalap, based on expected and tolerance
         tol = TOLERANCES[i]

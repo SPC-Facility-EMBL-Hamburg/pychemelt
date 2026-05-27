@@ -10,7 +10,7 @@ from pychemelt.utils.signals import signal_two_state_tc_unfolding
 from pychemelt.utils.math import quadratic_baseline
 import pytest
 
-def_params = {
+def_params = { 
     'DHm': 100,
     'Tm': 60 + 273.15,
     'Cp0': 1.6,
@@ -252,11 +252,11 @@ def test_leave_one_out_cross_validation():
     # Verify that each TRUE parameter value is within the confidence interval of the LOO CV results
     for i, value in enumerate([60, 100, 1.6, 2.6]):
 
-        # Second column is LOO median, third column is LOO IQR
-        loo_med = sample.loo_df.iloc[i,1]
-        loo_iqr = sample.loo_df.iloc[i,2]
-        lower_bound = loo_med - 2*loo_iqr
-        upper_bound = loo_med + 2*loo_iqr
+        # Second column is LOO mean, third column is LOO std
+        loo_mean = sample.loo_df.iloc[i,1]
+        loo_std = sample.loo_df.iloc[i,2]
+        lower_bound = loo_mean - 2*loo_std
+        upper_bound = loo_mean + 2*loo_std
 
         assert lower_bound <= value <= upper_bound, f"Parameter {sample.loo_df.iloc[i,0]}: {value} not in [{lower_bound}, {upper_bound}] for LOO CV"
 
