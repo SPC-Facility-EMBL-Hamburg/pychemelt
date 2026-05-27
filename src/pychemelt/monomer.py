@@ -1123,7 +1123,7 @@ class Monomer(Sample):
                     if i in scale_factor_exclude_ids:
                         continue
 
-                    if 0.995 <= sf <= 1.015:
+                    if 0.995 <= sf <= 1.005:
                         # Exclude the scale factor from the fit
                         scale_factor_exclude_ids.append(i)
                         re_fit = True
