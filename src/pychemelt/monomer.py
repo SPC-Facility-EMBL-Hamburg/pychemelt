@@ -286,11 +286,11 @@ class Monomer(Sample):
         """
 
         # We will use the Ratio signal, if available, to estimate the initial parameters
-        use_ratio = 'Ratio' in self.signals and self.signal_names[0] != 'Ratio'
+        use_ratio = 'Ratio' in self.signals and 'Ratio' not in self.signal_names
 
         if use_ratio:
 
-            current_signal = self.signal_names[0]
+            current_signals = self.signal_names
 
             # Extract temperature limits
             self.set_signal('Ratio')
@@ -315,8 +315,8 @@ class Monomer(Sample):
 
         if use_ratio:
             # Go back to the original signal
-            self.set_signal(current_signal)
-            self.select_conditions(self.boolean_lst, normalise_to_global_max=self.normalise_to_global_max)
+            self.set_signal(current_signals)
+            self.select_conditions(self.boolean_lst, normalise_to_global_max = self.normalise_to_global_max)
             self.set_temperature_range(self.user_min_temp, self.user_max_temp)
 
         return None
