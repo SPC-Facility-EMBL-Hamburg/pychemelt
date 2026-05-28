@@ -1420,70 +1420,79 @@ class Monomer(Sample):
 
         # Flatten all arrays and repeat denaturant values accordingly
 
-        if signal_type == 'derivative':
+        signal_df_list = []
 
-            deriv_lst = self.deriv_lst_multiple[0]
-            temp_lst = self.temp_deriv_lst_multiple[0]
+        for i,signal_name in enumerate(self.signal_names):
 
-            signal_all = np.concatenate(deriv_lst)
-            temp_all = np.concatenate(temp_lst)
+            if signal_type == 'derivative':
 
-        else:
+                deriv_lst = self.deriv_lst_multiple[i]
+                temp_lst = self.temp_deriv_lst_multiple[i]
 
-            # temperature is shared for the experimental and fitted signals
-            temp_lst = self.temp_lst_multiple[0]
-
-            if self.max_points is not None:
-                temp_lst = [subset_data(x, self.max_points) for x in temp_lst]
-
-            temp_all = np.concatenate(temp_lst)
-
-            # fitted data signal does not need subset!
-            if signal_type == 'fitted':
-
-                if not scaled:
-
-                    predicted_lst = self.predicted_lst_multiple[0]
-
-                else:
-
-                    predicted_lst = self.predicted_lst_multiple_scaled[0]
-
-                signal_all = np.concatenate(predicted_lst)
+                signal_all = np.concatenate(deriv_lst)
                 temp_all = np.concatenate(temp_lst)
 
-            # Signal_type set to 'raw'
             else:
 
-                if not scaled:
-
-                    signal_lst = self.signal_lst_multiple[0]
-
-                else:
-
-                    signal_lst = self.signal_lst_multiple_scaled[0]
+                # temperature is shared for the experimental and fitted signals
+                temp_lst = self.temp_lst_multiple[i]
 
                 if self.max_points is not None:
-                    signal_lst = [subset_data(x, self.max_points) for x in signal_lst]
+                    temp_lst = [subset_data(x, self.max_points) for x in temp_lst]
 
-                signal_all = np.concatenate(signal_lst)
+                temp_all = np.concatenate(temp_lst)
 
-        denat_all = np.concatenate([
-            np.full_like(temp_lst[i], self.denaturant_concentrations[i], dtype=np.float64)
-            for i in range(len(temp_lst))
-        ])
+                # fitted data signal does not need subset!
+                if signal_type == 'fitted':
 
-        # Add an ID column, so we can identify the curves, even with the same denaturant concentration
-        id_all = np.concatenate([
-            np.full_like(temp_lst[i], i, dtype=np.int32)
-            for i in range(len(temp_lst))
-        ])
+                    if not scaled:
 
-        signal_df = pd.DataFrame({
-            'Temperature': temp_all,
-            'Signal': signal_all,
-            'Denaturant': denat_all,
-            'ID': id_all
-        })
+                        predicted_lst = self.predicted_lst_multiple[i]
+
+                    else:
+
+                        predicted_lst = self.predicted_lst_multiple_scaled[i]
+
+                    signal_all = np.concatenate(predicted_lst)
+                    temp_all = np.concatenate(temp_lst)
+
+                # Signal_type set to 'raw'
+                else:
+
+                    if not scaled:
+
+                        signal_lst = self.signal_lst_multiple[i]
+
+                    else:
+
+                        signal_lst = self.signal_lst_multiple_scaled[i]
+
+                    if self.max_points is not None:
+                        signal_lst = [subset_data(x, self.max_points) for x in signal_lst]
+
+                    signal_all = np.concatenate(signal_lst)
+
+            denat_all = np.concatenate([
+                np.full_like(temp_lst[i], self.denaturant_concentrations[i], dtype=np.float64)
+                for i in range(len(temp_lst))
+            ])
+
+            # Add an ID column, so we can identify the curves, even with the same denaturant concentration
+            id_all = np.concatenate([
+                np.full_like(temp_lst[i], i, dtype=np.int32)
+                for i in range(len(temp_lst))
+            ])
+
+            signal_df = pd.DataFrame({
+                'Temperature': temp_all,
+                'Signal': signal_all,
+                'Denaturant': denat_all,
+                'ID': id_all
+            })
+
+            signal_df['Label'] = signal_name
+            signal_df_list.append(signal_df)
+
+        signal_df = pd.concat(signal_df_list, ignore_index=True)
 
         return signal_df
