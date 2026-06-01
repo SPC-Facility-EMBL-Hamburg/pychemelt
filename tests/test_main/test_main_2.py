@@ -299,3 +299,9 @@ def test_create_fit_report():
     sample.create_fit_report()
 
     assert isinstance(sample.fit_report, str)
+
+def test_create_fit_report_err():
+
+    sample.result = None # Force error
+    with pytest.raises(ValueError):
+        sample.create_fit_report()

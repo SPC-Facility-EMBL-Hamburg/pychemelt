@@ -15,6 +15,7 @@ from .main import Sample
 from .utils.signals import signal_two_state_tc_unfolding
 
 from .utils.math import (
+    temperature_to_celsius,
     temperature_to_kelvin,
     relative_errors,
     find_line_outliers
@@ -1496,3 +1497,109 @@ class Monomer(Sample):
         signal_df = pd.concat(signal_df_list, ignore_index=True)
 
         return signal_df
+
+    def compare_models(self,native_baseline_types,unfolded_baseline_types,global_model_type):
+
+        """
+        Compare different models with different baseline types and global/local parameters by fitting them and comparing their BIC values.
+
+        Parameters
+        ----------
+        native_baseline_types : list of str
+            List of native baseline types to compare. Each element should be one of 'linear', 'quadratic', 'exponential', or 'constant'.
+        unfolded_baseline_types : list of str
+            List of unfolded baseline types to compare. Each element should be one of 'linear', 'quadratic', 'exponential', or 'constant'.
+        global_model_type : str
+            Type of global model to fit. Should be one of 'global', 'global_global', or 'global_global_global'.
+
+        Returns
+        -------
+        pd.DataFrame
+            A DataFrame summarizing the fitted models and their BIC values, sorted by BIC.
+        """
+
+        # We will store the results in a list of dictionaries, and then convert it to a DataFrame at the end
+        results = []
+
+        for native_baseline_type in native_baseline_types:
+            for unfolded_baseline_type in unfolded_baseline_types:
+
+                # Create a copy of the original object to avoid modifying it in place across iterations
+                monomer_copy = deepcopy(self)
+
+                # Set the baseline types for the copy
+                monomer_copy.native_baseline_type = native_baseline_type
+                monomer_copy.unfolded_baseline_type = unfolded_baseline_type
+
+                monomer_copy.estimate_baseline_parameters(
+                    native_baseline_type,
+                    unfolded_baseline_type,
+                )
+                
+                monomer_copy.fit_thermal_unfolding_global()
+
+                # Store the results in the list
+                results.append({
+                    'Native Baseline': native_baseline_type,
+                    'Unfolded Baseline': unfolded_baseline_type,
+                    'Global Model Type': 'Local slopes and local intercepts',
+                    'Tm': monomer_copy.result.params['Tm'].value,
+                    'ΔHm': monomer_copy.result.params['DHm'].value,
+                    'ΔCp': monomer_copy.result.params['Cp0'].value if 'Cp0' in monomer_copy.result.params else monomer_copy.cp_value,
+                    'm-value': monomer_copy.result.params['m0'].value,
+                    'AIC': monomer_copy.result.aic,
+                    'BIC': monomer_copy.result.bic,
+                    'Fit Object': monomer_copy.result  # Store the fit object for potential later use
+                })
+
+                # If the global-global fit is done, we can also do the global-global fit for the same baseline types
+                if global_model_type in ['global_global', 'global_global_global']:
+
+                    monomer_copy.fit_thermal_unfolding_global_global()
+
+                    results.append({
+                        'Native Baseline': native_baseline_type,
+                        'Unfolded Baseline': unfolded_baseline_type,
+                        'Global Model Type': 'Global slopes and local intercepts',
+                        'Tm': monomer_copy.result.params['Tm'].value,
+                        'ΔHm': monomer_copy.result.params['DHm'].value,
+                        'ΔCp': monomer_copy.result.params['Cp0'].value if 'Cp0' in monomer_copy.result.params else monomer_copy.cp_value,
+                        'm-value': monomer_copy.result.params['m0'].value,
+                        'AIC': monomer_copy.result.aic,
+                        'BIC': monomer_copy.result.bic,
+                        'Fit Object': monomer_copy.result  # Store the fit object for potential later use
+                    })
+
+                    if global_model_type == 'global_global_global':
+
+                        monomer_copy.fit_thermal_unfolding_global_global_global()
+
+                        results.append({
+                            'Native Baseline': native_baseline_type,
+                            'Unfolded Baseline': unfolded_baseline_type,
+                            'Global Model Type': 'Global slopes and global intercepts',
+                            'Tm': monomer_copy.result.params['Tm'].value,
+                            'ΔHm': monomer_copy.result.params['DHm'].value,
+                            'ΔCp': monomer_copy.result.params['Cp0'].value if 'Cp0' in monomer_copy.result.params else monomer_copy.cp_value,
+                            'm-value': monomer_copy.result.params['m0'].value,
+                            'AIC': monomer_copy.result.aic,
+                            'BIC': monomer_copy.result.bic,
+                            'Fit Object': monomer_copy.result  # Store the fit object for potential later use
+                        })
+
+        # Convert the results to a DataFrame and sort by BIC
+        results_df = pd.DataFrame(results)
+        results_df = results_df.sort_values(by='BIC').reset_index(drop=True)
+
+        # Remove the Fit Object and save it as an attribute for potential later use
+        self.fit_objects = results_df.pop('Fit Object').tolist()
+
+        # Round Tm, ΔH, ΔCp, and m-value for better readability
+        results_df['Tm'] = temperature_to_celsius(results_df['Tm']).round(1)
+        results_df['ΔHm'] = results_df['ΔHm'].round(1)
+        results_df['ΔCp'] = results_df['ΔCp'].round(2)
+        results_df['m-value'] = results_df['m-value'].round(2)
+
+        self.comparison_df = results_df
+
+        return None

@@ -176,3 +176,22 @@ def test_fit_thermal_unfolding_global_global_global():
     df = pychem_sim.signal_to_df(signal_type='fitted',scaled=False)
 
     assert len(df) == 490
+
+def test_compare_models():
+
+    pychem_sim.compare_models(
+        native_baseline_types=['exponential','quadratic'],
+        unfolded_baseline_types=['exponential','quadratic'],
+        global_model_type='global_global_global')
+
+    compare_df = pychem_sim.comparison_df
+
+    # Check that the expected columns are present
+    expected_columns = ['Native Baseline', 'Unfolded Baseline', 'Global Model Type', 'Tm', 'ΔHm', 'ΔCp', 'm-value', 'AIC']
+    assert all(col in compare_df.columns for col in expected_columns)
+
+    # Verify that the best model (lowest BIC) is the one with the correct baseline types and global model type
+    best_model = compare_df.iloc[0]
+    assert best_model['Native Baseline']   == 'exponential'
+    assert best_model['Unfolded Baseline'] == 'exponential'
+    assert best_model['Global Model Type'] == 'Global slopes and global intercepts'
