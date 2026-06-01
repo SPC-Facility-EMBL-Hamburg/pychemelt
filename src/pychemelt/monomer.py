@@ -1498,7 +1498,7 @@ class Monomer(Sample):
 
         return signal_df
 
-    def compare_models(self,native_baseline_types,unfolded_baseline_types,global_model_type):
+    def compare_models(self,native_baseline_types,unfolded_baseline_types,global_model_type,**kwargs):
 
         """
         Compare different models with different baseline types and global/local parameters by fitting them and comparing their BIC values.
@@ -1511,6 +1511,8 @@ class Monomer(Sample):
             List of unfolded baseline types to compare. Each element should be one of 'linear', 'quadratic', 'exponential', or 'constant'.
         global_model_type : str
             Type of global model to fit. Should be one of 'global', 'global_global', or 'global_global_global'.
+        **kwargs
+            Additional keyword arguments to pass to fit_thermal_unfolding_global (e.g., fit_m_dep, cp_limits, dh_limits, tm_limits, cp_value).
 
         Returns
         -------
@@ -1536,7 +1538,7 @@ class Monomer(Sample):
                     unfolded_baseline_type,
                 )
                 
-                monomer_copy.fit_thermal_unfolding_global()
+                monomer_copy.fit_thermal_unfolding_global(**kwargs)
 
                 # Store the results in the list
                 results.append({

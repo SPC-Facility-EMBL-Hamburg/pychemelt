@@ -195,3 +195,18 @@ def test_compare_models():
     assert best_model['Native Baseline']   == 'exponential'
     assert best_model['Unfolded Baseline'] == 'exponential'
     assert best_model['Global Model Type'] == 'Global slopes and global intercepts'
+
+    # Test it with additional arguments for the fit
+    kwargs = {'dh_limits': [100,150], 'tm_limits': [60,70], 'cp_limits': [1.5,2.5]}
+    pychem_sim.compare_models(
+        native_baseline_types=['exponential','quadratic'],
+        unfolded_baseline_types=['exponential','quadratic'],
+        global_model_type='global_global_global',
+        **kwargs
+    )
+
+    assert pychem_sim.comparison_df is not None
+    best_model = compare_df.iloc[0]
+    assert best_model['Native Baseline']   == 'exponential'
+    assert best_model['Unfolded Baseline'] == 'exponential'
+    assert best_model['Global Model Type'] == 'Global slopes and global intercepts'
