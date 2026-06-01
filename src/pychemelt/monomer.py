@@ -1523,6 +1523,10 @@ class Monomer(Sample):
         # We will store the results in a list of dictionaries, and then convert it to a DataFrame at the end
         results = []
 
+        # convert to list if not already a list
+        native_baseline_type = transform_to_list(native_baseline_types)
+        unfolded_baseline_types = transform_to_list(unfolded_baseline_types)
+
         for native_baseline_type in native_baseline_types:
             for unfolded_baseline_type in unfolded_baseline_types:
 
