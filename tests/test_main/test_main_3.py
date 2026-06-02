@@ -180,8 +180,8 @@ def test_fit_thermal_unfolding_global_global_global():
 def test_compare_models():
 
     pychem_sim.compare_models(
-        native_baseline_types=['exponential','quadratic'],
-        unfolded_baseline_types=['exponential','quadratic'],
+        native_baseline_types=['exponential','constant'],
+        unfolded_baseline_types=['exponential','quadratic','linear'],
         global_model_type='global_global_global')
 
     compare_df = pychem_sim.comparison_df

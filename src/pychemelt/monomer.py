@@ -1124,7 +1124,7 @@ class Monomer(Sample):
                     if i in scale_factor_exclude_ids:
                         continue
 
-                    if 0.995 <= sf <= 1.005:
+                    if 0.9995 <= sf <= 1.0005:
                         # Exclude the scale factor from the fit
                         scale_factor_exclude_ids.append(i)
                         re_fit = True
@@ -1524,7 +1524,7 @@ class Monomer(Sample):
         results = []
 
         # convert to list if not already a list
-        native_baseline_type = transform_to_list(native_baseline_types)
+        native_baseline_types = transform_to_list(native_baseline_types)
         unfolded_baseline_types = transform_to_list(unfolded_baseline_types)
 
         for native_baseline_type in native_baseline_types:
