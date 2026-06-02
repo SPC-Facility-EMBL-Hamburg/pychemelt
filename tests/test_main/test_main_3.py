@@ -7,7 +7,7 @@ import pytest
 
 from pychemelt import Monomer as Sample
 from pychemelt.utils.signals import signal_two_state_tc_unfolding
-from pychemelt.utils.math import exponential_baseline
+from pychemelt.utils.math import exponential_baseline, aic_bic_eff
 
 def_params = {
     'DHm': 120,
@@ -210,3 +210,4 @@ def test_compare_models():
     assert best_model['Native Baseline']   == 'exponential'
     assert best_model['Unfolded Baseline'] == 'exponential'
     assert best_model['Global Model Type'] == 'Global slopes and global intercepts'
+

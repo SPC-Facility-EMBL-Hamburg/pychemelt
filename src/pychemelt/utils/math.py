@@ -489,3 +489,27 @@ def solve_one_root_depressed_cubic(p,q):
 
 
     return res
+
+def aic_bic_eff(result,neff):
+
+    """
+    Calculate the AIC and BIC for a fitted model, accounting for the effective number of data points.
+
+    Parameters
+    ----------
+    result : OptimizeResult
+        The result object returned by the fitting procedure, which contains the chi-squared value and the number of parameters.
+    neff : int
+        The effective number of data points, which may be less than the total number of data points due to correlations or other factors.
+
+    Returns
+    -------
+    tuple
+        A tuple containing the AIC and BIC values (AIC, BIC).
+    """
+
+    chisq = result.chisqr
+    k = result.nvarys
+    aic_eff = neff * np.log(chisq / neff) + 2 * k
+    bic_eff = neff * np.log(chisq / neff) + np.log(neff) * k
+    return aic_eff, bic_eff

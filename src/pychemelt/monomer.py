@@ -18,7 +18,8 @@ from .utils.math import (
     temperature_to_celsius,
     temperature_to_kelvin,
     relative_errors,
-    find_line_outliers
+    find_line_outliers,
+    aic_bic_eff
 )
 
 from .utils.processing import (
@@ -1372,7 +1373,7 @@ class Monomer(Sample):
 
         return None
 
-    def create_fit_report(self):
+    def create_fit_report(self,neff=None):
 
         """
         Create a fit report using the lmfit result object.
@@ -1382,6 +1383,19 @@ class Monomer(Sample):
             raise ValueError("No fit result available. Please run a fitting method before creating a fit report.")
 
         self.fit_report = fit_report(self.result)
+
+        if neff is not None:
+
+            aic, bic = aic_bic_eff(self.result, neff)
+
+            # Find the first line with the string '[[Variables]]'
+            # and insert the corrected AIC and BIC values before that line
+
+            report_lines = self.fit_report.split('\n')
+            insert_idx = next(i for i, line in enumerate(report_lines) if '[[Variables]]' in line)
+            report_lines.insert(insert_idx, f"Corrected AIC (neff={neff}): {aic:.2f}")
+            report_lines.insert(insert_idx + 1, f"Corrected BIC (neff={neff}): {bic:.2f}")
+            self.fit_report = '\n'.join(report_lines)
 
         return None
 
@@ -1498,7 +1512,7 @@ class Monomer(Sample):
 
         return signal_df
 
-    def compare_models(self,native_baseline_types,unfolded_baseline_types,global_model_type,**kwargs):
+    def compare_models(self,native_baseline_types,unfolded_baseline_types,global_model_type,neff=None,**kwargs):
 
         """
         Compare different models with different baseline types and global/local parameters by fitting them and comparing their BIC values.
@@ -1511,6 +1525,8 @@ class Monomer(Sample):
             List of unfolded baseline types to compare. Each element should be one of 'linear', 'quadratic', 'exponential', or 'constant'.
         global_model_type : str
             Type of global model to fit. Should be one of 'global', 'global_global', or 'global_global_global'.
+        neff : int, optional
+            Effective number of data points to use for AIC and BIC calculation. If None, the total number of data points across all signals and temperatures will be used.
         **kwargs
             Additional keyword arguments to pass to fit_thermal_unfolding_global (e.g., fit_m_dep, cp_limits, dh_limits, tm_limits, cp_value).
 
@@ -1544,6 +1560,15 @@ class Monomer(Sample):
                 
                 monomer_copy.fit_thermal_unfolding_global(**kwargs)
 
+                if neff is not None:
+
+                    aic, bic = aic_bic_eff(monomer_copy.result, neff)
+                
+                else:
+
+                    aic = monomer_copy.result.aic
+                    bic = monomer_copy.result.bic
+
                 # Store the results in the list
                 results.append({
                     'Native Baseline': native_baseline_type,
@@ -1553,8 +1578,8 @@ class Monomer(Sample):
                     'ΔHm': monomer_copy.result.params['DHm'].value,
                     'ΔCp': monomer_copy.result.params['Cp0'].value if 'Cp0' in monomer_copy.result.params else monomer_copy.cp_value,
                     'm-value': monomer_copy.result.params['m0'].value,
-                    'AIC': monomer_copy.result.aic,
-                    'BIC': monomer_copy.result.bic,
+                    'AIC': aic,
+                    'BIC': bic,
                     'Fit Object': monomer_copy.result  # Store the fit object for potential later use
                 })
 
@@ -1562,6 +1587,15 @@ class Monomer(Sample):
                 if global_model_type in ['global_global', 'global_global_global']:
 
                     monomer_copy.fit_thermal_unfolding_global_global()
+
+                    if neff is not None:
+
+                        aic, bic = aic_bic_eff(monomer_copy.result, neff)
+
+                    else:
+                        
+                        aic = monomer_copy.result.aic
+                        bic = monomer_copy.result.bic
 
                     results.append({
                         'Native Baseline': native_baseline_type,
@@ -1571,14 +1605,23 @@ class Monomer(Sample):
                         'ΔHm': monomer_copy.result.params['DHm'].value,
                         'ΔCp': monomer_copy.result.params['Cp0'].value if 'Cp0' in monomer_copy.result.params else monomer_copy.cp_value,
                         'm-value': monomer_copy.result.params['m0'].value,
-                        'AIC': monomer_copy.result.aic,
-                        'BIC': monomer_copy.result.bic,
+                        'AIC': aic,
+                        'BIC': bic,
                         'Fit Object': monomer_copy.result  # Store the fit object for potential later use
                     })
 
                     if global_model_type == 'global_global_global':
 
                         monomer_copy.fit_thermal_unfolding_global_global_global()
+
+                        if neff is not None:
+
+                            aic, bic = aic_bic_eff(monomer_copy.result, neff)
+
+                        else:
+
+                                aic = monomer_copy.result.aic
+                                bic = monomer_copy.result.bic
 
                         results.append({
                             'Native Baseline': native_baseline_type,
@@ -1588,8 +1631,8 @@ class Monomer(Sample):
                             'ΔHm': monomer_copy.result.params['DHm'].value,
                             'ΔCp': monomer_copy.result.params['Cp0'].value if 'Cp0' in monomer_copy.result.params else monomer_copy.cp_value,
                             'm-value': monomer_copy.result.params['m0'].value,
-                            'AIC': monomer_copy.result.aic,
-                            'BIC': monomer_copy.result.bic,
+                            'AIC': aic,
+                            'BIC': bic,
                             'Fit Object': monomer_copy.result  # Store the fit object for potential later use
                         })
 
