@@ -23,6 +23,7 @@ __all__ = [
     "LegendConfig",
     "config_fig",
     "plot_unfolding",
+    "plot_residuals",
     "plot_baselines"
 ]
 
@@ -377,6 +378,333 @@ def plot_unfolding(
         ),
         row=1, col=1
     )
+
+    subplot_title_set = set(subplot_titles)
+
+    fig.update_annotations(
+        selector=lambda ann: ann.text in subplot_title_set,
+        patch=dict(font=dict(size=plot_config.font_size * 1.2))
+    )
+
+    fig = config_fig(
+        fig,
+        plot_config.width,
+        plot_config.height,
+        plot_config.type
+    )
+
+    return fig
+
+def plot_residuals(
+        pychemelt_sample,
+        individual_curves=False,
+        plot_config: PlotConfig = None,
+        axis_config: AxisConfig = None,
+        layout_config: LayoutConfig = None,
+        legend_config: LegendConfig = None):
+
+    """
+    Plot the residuals (experimental - fitted) of the unfolding curves
+
+    Parameters
+    ----------
+
+    pychemelt_sample:
+        pychemelt.Sample object (must have fitted data)
+    individual_curves : bool, optional
+        If False (default), group all denaturant concentrations per signal in one subplot.
+        If True, plot each combination of signal and denaturant concentration in separate subplots.
+    plot_config : PlotConfig, optional
+        Configuration for the overall plot
+    axis_config : AxisConfig, optional
+        Configuration for the axes
+    layout_config : LayoutConfig, optional
+        Configuration for the layout
+    legend_config : LegendConfig, optional
+        configuration for the legend
+
+    Returns
+    -------
+    fig : go.Figure
+        Plotly figure object with residual plots
+
+    Raises
+    ------
+    ValueError
+        If no fitting has been performed on the sample
+
+    """
+
+    # Set defaults for configuration objects
+    plot_config = plot_config or PlotConfig()
+    axis_config = axis_config or AxisConfig()
+    layout_config = layout_config or LayoutConfig()
+    legend_config = legend_config or LegendConfig()
+
+    # Check if fittings have been done
+    if pychemelt_sample.global_fit_params is None:
+        raise ValueError("No fitting has been performed. Please fit the data before plotting residuals.")
+
+    # Extract the minimum and maximum denaturation concentration
+    concs = pychemelt_sample.denaturant_concentrations
+
+    # Adjusting scale depending on highest concentration
+    scale = "M"
+
+    if np.max(concs) < 1e-1:
+        concs = concs * 1e3
+        scale = "mM"
+    if np.max(concs) < 1e-1:
+        concs = concs * 1e3
+        scale = "μM"
+
+    min_conc = np.min(concs)
+    max_conc = np.max(concs)
+
+    colors = get_colors_from_numeric_values(concs, min_conc, max_conc)
+
+    nr_den = pychemelt_sample.nr_den
+    nr_signals = pychemelt_sample.nr_signals
+
+    if individual_curves:
+        # Each combination of signal and concentration gets its own subplot
+        n_subplots = nr_signals * nr_den
+        
+        # Set max 6 plots per row for better visibility
+        nrows = n_subplots // 6 + (n_subplots % 6 > 0)
+
+        nrows = min(nrows, n_subplots)
+        
+        ncols = int(np.ceil(n_subplots / nrows))
+        
+        # Create subplot titles: "Signal @ Concentration"
+        subplot_titles = []
+        for signal_name in pychemelt_sample.signal_names:
+            for conc in concs:
+                subplot_titles.append(f"{signal_name} @ {conc:.2f} {scale}")
+        
+    else:
+        # Group all concentrations per signal
+        n_subplots = nr_signals
+        
+        # Set number of rows: 2 if less than 8 plots, else 3
+        nrows = 2 if n_subplots < 9 else 3
+        nrows = min(nrows, n_subplots)
+        
+        ncols = int(np.ceil(n_subplots / nrows))
+        
+        subplot_titles = pychemelt_sample.signal_names
+
+    row_arr = np.arange(1, nrows + 1)
+    col_arr = np.arange(1, ncols + 1)
+    # Row and column counters for subplotting
+    row_col_info = combine_sequences(row_arr, col_arr)
+
+    fig = make_subplots(
+        rows=nrows,
+        cols=ncols,
+        shared_xaxes=True,
+        shared_yaxes=False,
+        vertical_spacing=layout_config.vertical_spacing,
+        subplot_titles=subplot_titles)
+
+    subplot_idx = 0
+
+    if individual_curves:
+        # Plot each curve in its own subplot
+        for i in range(nr_signals):
+            
+            # Get experimental and fitted data for this signal
+            xs = pychemelt_sample.temp_lst_expanded[i*nr_den:(i+1)*nr_den]
+            ys = pychemelt_sample.signal_lst_expanded[i*nr_den:(i+1)*nr_den]
+            ys_fit = pychemelt_sample.predicted_lst_multiple[i]
+            
+            for j, conc in enumerate(concs):
+                
+                row = row_col_info[subplot_idx][0]
+                col = row_col_info[subplot_idx][1]
+                
+                color = colors[j]
+                
+                x = xs[j]
+                y = ys[j]
+                y_fit = ys_fit[j]
+                
+                # Calculate residuals
+                residuals = y - y_fit
+                
+                fig.add_trace(
+                    go.Scatter(
+                        x=x, y=residuals, mode='markers',
+                        marker=dict(size=plot_config.marker_size, color=color),
+                        name=f'{conc:.2f} {scale}',
+                        showlegend=False
+                    ),
+                    row=row, col=col
+                )
+                
+                # Add a horizontal line at y=0 for reference
+                x_min = x.min()
+                x_max = x.max()
+                
+                fig.add_trace(
+                    go.Scatter(
+                        x=[x_min, x_max], y=[0, 0], mode='lines',
+                        line=dict(color='gray', width=1, dash='dash'),
+                        showlegend=False,
+                        hoverinfo='skip'
+                    ),
+                    row=row, col=col
+                )
+                
+                subplot_idx += 1
+    
+    else:
+        # Group all concentrations per signal in one subplot
+        for i in range(n_subplots):
+
+            row = row_col_info[subplot_idx][0]
+            col = row_col_info[subplot_idx][1]
+
+            # Get experimental and fitted data
+            xs = pychemelt_sample.temp_lst_expanded[i*nr_den:(i+1)*nr_den]
+            ys = pychemelt_sample.signal_lst_expanded[i*nr_den:(i+1)*nr_den]
+            ys_fit = pychemelt_sample.predicted_lst_multiple[i]
+
+            for j, conc in enumerate(concs):
+
+                color = colors[j]
+
+                x = xs[j]
+                y = ys[j]
+                y_fit = ys_fit[j]
+
+                # Calculate residuals
+                residuals = y - y_fit
+
+                fig.add_trace(
+                    go.Scatter(
+                        x=x, y=residuals, mode='markers',
+                        marker=dict(size=plot_config.marker_size, color=color),
+                        name=f'{conc:.2f} {scale}',
+                        showlegend=False
+                    ),
+                    row=row, col=col
+                )
+
+            # Add a horizontal line at y=0 for reference
+            x_min = min([xs[j].min() for j in range(len(xs))])
+            x_max = max([xs[j].max() for j in range(len(xs))])
+            
+            fig.add_trace(
+                go.Scatter(
+                    x=[x_min, x_max], y=[0, 0], mode='lines',
+                    line=dict(color='gray', width=1, dash='dash'),
+                    showlegend=False,
+                    hoverinfo='skip'
+                ),
+                row=row, col=col
+            )
+
+            subplot_idx += 1
+
+    # Update subplot layout with white background and axis styling
+    fig.update_layout(
+        font_family="Roboto",
+        font_color="black",
+        plot_bgcolor='white',
+        paper_bgcolor='white',
+        legend=dict(font=dict(size=plot_config.font_size - 1))
+    )
+
+    for i in range(n_subplots):
+
+        row = row_col_info[i][0]
+        col = row_col_info[i][1]
+
+        # Set the x-axis title only for the last row
+        title_text_x = 'Temperature (°C)' if row == nrows else ''
+
+        # Set the y-axis title only for the first column
+        title_text_y = 'Residuals' if col == 1 else ''
+
+        fig.update_xaxes(
+            title_text=title_text_x,
+            showgrid=axis_config.showgrid_x,
+            gridwidth=axis_config.gridwidth,
+            gridcolor='lightgray',
+            showline=True,
+            linewidth=axis_config.linewidth,
+            linecolor='black',
+            zeroline=False,
+            tickcolor='black',
+            ticks="outside",
+            tickwidth=axis_config.tickwidth,
+            ticklen=axis_config.ticklen,
+            title_font_size=plot_config.font_size,
+            tickfont_size=plot_config.font_size,
+            col=col,
+            row=row
+        )
+
+        fig.update_yaxes(
+            title_text=title_text_y,
+            showgrid=axis_config.showgrid_y,
+            gridwidth=axis_config.gridwidth,
+            gridcolor='lightgray',
+            showline=True,
+            linewidth=axis_config.linewidth,
+            linecolor='black',
+            zeroline=True,
+            zerolinewidth=1,
+            zerolinecolor='gray',
+            tickcolor='black',
+            ticks="outside",
+            tickwidth=axis_config.tickwidth,
+            ticklen=axis_config.ticklen,
+            title_font_size=plot_config.font_size,
+            tickfont_size=plot_config.font_size,
+            nticks=axis_config.n_y_axis_ticks,
+            col=col,
+            row=row
+        )
+
+    # Only add colorbar if not in individual_curves mode
+    if not individual_curves:
+        # Build colorbar dict using legend_config values (orientation and x/y position)
+        # Choose sensible anchors depending on orientation
+        _xanchor = 'center' if legend_config.color_bar_orientation == 'h' else 'left'
+        _yanchor = 'top'    if legend_config.color_bar_orientation == 'h' else 'middle'
+
+        colorbar_dict = dict(
+            title=f'[Protein] ({scale})' if pychemelt_sample.oligomeric else f'[Denaturant] ({scale})',
+            tickvals=[min_conc, 0.5*(min_conc + max_conc), max_conc],
+            ticktext=[f"{min_conc:.2g}", f"{(min_conc + max_conc) * 0.5:.2g}", f"{max_conc:.2g}"],
+            len=legend_config.color_bar_length,
+            outlinewidth=1,
+            ticks='outside',
+            tickfont=dict(size=plot_config.font_size - 1),
+            orientation=legend_config.color_bar_orientation,
+            x=legend_config.color_bar_x_pos,
+            y=legend_config.color_bar_y_pos,
+            xanchor=_xanchor,
+            yanchor=_yanchor
+        )
+
+        fig.add_trace(
+            go.Scatter(
+                x=[None], y=[None], mode='markers',
+                marker=dict(
+                    colorscale='Viridis',
+                    cmin=min_conc,
+                    cmax=max_conc,
+                    colorbar=colorbar_dict
+                ),
+                showlegend=False,
+                hoverinfo='skip'
+            ),
+            row=1, col=1
+        )
 
     subplot_title_set = set(subplot_titles)
 

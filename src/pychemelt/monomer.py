@@ -19,7 +19,8 @@ from .utils.math import (
     temperature_to_kelvin,
     relative_errors,
     find_line_outliers,
-    aic_bic_eff
+    aic_bic_eff,
+    extended_bic
 )
 
 from .utils.processing import (
@@ -1512,7 +1513,7 @@ class Monomer(Sample):
 
         return signal_df
 
-    def compare_models(self,native_baseline_types,unfolded_baseline_types,global_model_type,neff=None,**kwargs):
+    def compare_models(self,native_baseline_types,unfolded_baseline_types,global_model_type,neff=None,gamma=1,**kwargs):
 
         """
         Compare different models with different baseline types and global/local parameters by fitting them and comparing their BIC values.
@@ -1526,14 +1527,17 @@ class Monomer(Sample):
         global_model_type : str
             Type of global model to fit. Should be one of 'global', 'global_global', or 'global_global_global'.
         neff : int, optional
-            Effective number of data points to use for AIC and BIC calculation. If None, the total number of data points across all signals and temperatures will be used.
+            Effective number of data points to use for AIC, BIC, and EBIC calculation. If None, the total number of data points across all signals and temperatures will be used.
+        gamma : float, optional
+            Tuning parameter for the Extended BIC (EBIC), typically between 0 and 1 (default: 0.5).
+            When gamma=0, EBIC reduces to standard BIC. Higher values impose stronger penalties for model complexity.
         **kwargs
             Additional keyword arguments to pass to fit_thermal_unfolding_global (e.g., fit_m_dep, cp_limits, dh_limits, tm_limits, cp_value).
 
         Returns
         -------
         pd.DataFrame
-            A DataFrame summarizing the fitted models and their BIC values, sorted by BIC.
+            A DataFrame summarizing the fitted models and their BIC and EBIC values, sorted by EBIC.
         """
 
         # We will store the results in a list of dictionaries, and then convert it to a DataFrame at the end
@@ -1563,11 +1567,15 @@ class Monomer(Sample):
                 if neff is not None:
 
                     aic, bic = aic_bic_eff(monomer_copy.result, neff)
+                    ebic = extended_bic(monomer_copy.result, neff, gamma=gamma)
                 
                 else:
 
                     aic = monomer_copy.result.aic
                     bic = monomer_copy.result.bic
+                    # Calculate EBIC with total number of data points
+                    n_total = monomer_copy.result.ndata
+                    ebic = extended_bic(monomer_copy.result, n_total, gamma=gamma)
 
                 # Store the results in the list
                 results.append({
@@ -1580,6 +1588,8 @@ class Monomer(Sample):
                     'm-value': monomer_copy.result.params['m0'].value,
                     'AIC': aic,
                     'BIC': bic,
+                    'EBIC': ebic,
+                    'Reduced χ²': monomer_copy.result.redchi,
                     'Fit Object': monomer_copy.result  # Store the fit object for potential later use
                 })
 
@@ -1591,11 +1601,15 @@ class Monomer(Sample):
                     if neff is not None:
 
                         aic, bic = aic_bic_eff(monomer_copy.result, neff)
+                        ebic = extended_bic(monomer_copy.result, neff, gamma=gamma)
 
                     else:
                         
                         aic = monomer_copy.result.aic
                         bic = monomer_copy.result.bic
+                        # Calculate EBIC with total number of data points
+                        n_total = monomer_copy.result.ndata
+                        ebic = extended_bic(monomer_copy.result, n_total, gamma=gamma)
 
                     results.append({
                         'Native Baseline': native_baseline_type,
@@ -1607,6 +1621,8 @@ class Monomer(Sample):
                         'm-value': monomer_copy.result.params['m0'].value,
                         'AIC': aic,
                         'BIC': bic,
+                        'EBIC': ebic,
+                        'Reduced χ²': monomer_copy.result.redchi,
                         'Fit Object': monomer_copy.result  # Store the fit object for potential later use
                     })
 
@@ -1617,11 +1633,15 @@ class Monomer(Sample):
                         if neff is not None:
 
                             aic, bic = aic_bic_eff(monomer_copy.result, neff)
+                            ebic = extended_bic(monomer_copy.result, neff, gamma=gamma)
 
                         else:
 
                                 aic = monomer_copy.result.aic
                                 bic = monomer_copy.result.bic
+                                # Calculate EBIC with total number of data points
+                                n_total = monomer_copy.result.ndata
+                                ebic = extended_bic(monomer_copy.result, n_total, gamma=gamma)
 
                         results.append({
                             'Native Baseline': native_baseline_type,
@@ -1633,21 +1653,27 @@ class Monomer(Sample):
                             'm-value': monomer_copy.result.params['m0'].value,
                             'AIC': aic,
                             'BIC': bic,
+                            'EBIC': ebic,
+                            'Reduced χ²': monomer_copy.result.redchi,
                             'Fit Object': monomer_copy.result  # Store the fit object for potential later use
                         })
 
-        # Convert the results to a DataFrame and sort by BIC
+        # Convert the results to a DataFrame and sort by EBIC
         results_df = pd.DataFrame(results)
-        results_df = results_df.sort_values(by='BIC').reset_index(drop=True)
+        results_df = results_df.sort_values(by='EBIC').reset_index(drop=True)
 
         # Remove the Fit Object and save it as an attribute for potential later use
         self.fit_objects = results_df.pop('Fit Object').tolist()
 
-        # Round Tm, ΔH, ΔCp, and m-value for better readability
+        # Round Tm, ΔH, ΔCp, m-value, and Reduced χ² for better readability
         results_df['Tm'] = temperature_to_celsius(results_df['Tm']).round(1)
         results_df['ΔHm'] = results_df['ΔHm'].round(1)
         results_df['ΔCp'] = results_df['ΔCp'].round(2)
         results_df['m-value'] = results_df['m-value'].round(2)
+        results_df['AIC'] = results_df['AIC'].round(2)
+        results_df['BIC'] = results_df['BIC'].round(2)
+        results_df['EBIC'] = results_df['EBIC'].round(2)
+        results_df['Reduced χ²'] = results_df['Reduced χ²'].round(4)
 
         self.comparison_df = results_df
 

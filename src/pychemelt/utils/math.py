@@ -28,6 +28,8 @@ __all__ = [
     "get_rss",
     "solve_one_root_quadratic",
     "solve_one_root_depressed_cubic",
+    "aic_bic_eff",
+    "extended_bic",
 ]
 
 def temperature_to_kelvin(T):
@@ -513,3 +515,52 @@ def aic_bic_eff(result,neff):
     aic_eff = neff * np.log(chisq / neff) + 2 * k
     bic_eff = neff * np.log(chisq / neff) + np.log(neff) * k
     return aic_eff, bic_eff
+
+def extended_bic(result, neff, gamma=0.5):
+    """
+    Calculate the Extended Bayesian Information Criterion (EBIC) for a fitted model, accounting for the effective number of data points.
+
+    The EBIC adds an additional penalty term to BIC to help with model selection in high-dimensional settings.
+    When gamma=0, EBIC reduces to standard BIC. Higher gamma values impose stronger penalties for model complexity.
+
+    Parameters
+    ----------
+    result : OptimizeResult
+        The result object returned by the fitting procedure, which contains the chi-squared value and the number of parameters.
+    neff : int
+        The effective number of data points, which may be less than the total number of data points due to correlations or other factors.
+    gamma : float, optional
+        Tuning parameter for the extended penalty term, typically between 0 and 1 (default: 0.5).
+        gamma=0 gives standard BIC, gamma=1 gives maximum penalty.
+
+    Returns
+    -------
+    float
+        The EBIC value.
+
+    Notes
+    -----
+    EBIC = n * log(chisq / n) + k * log(n) + 2 * gamma * log(C(n, k))
+    where C(n, k) is the binomial coefficient.
+    """
+
+    chisq = result.chisqr
+    k = result.nvarys
+    
+    # Standard BIC term
+    bic_term = neff * np.log(chisq / neff) + np.log(neff) * k
+    
+    # Extended penalty term using log-binomial coefficient
+    # log(C(n, k)) = log(n!) - log(k!) - log((n-k)!)
+    # For numerical stability, we use the approximation when k > 0 and k < n
+    if k > 0 and k < neff:
+        # Use scipy's logsumexp or direct calculation
+        from scipy.special import gammaln
+        log_binom = gammaln(neff + 1) - gammaln(k + 1) - gammaln(neff - k + 1)
+        extended_penalty = 2 * gamma * log_binom
+    else:
+        extended_penalty = 0
+    
+    ebic = bic_term + extended_penalty
+    
+    return ebic
