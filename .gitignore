@@ -28,6 +28,7 @@ docs/_build/
 
 # Dev python files
 temp.py
+temp2.py
 logbook_example.py
 
 # JSON files

@@ -131,7 +131,7 @@ class Monomer(Sample):
         if normalise_to_global_max:
 
             flat = list(chain.from_iterable(chain.from_iterable(self.signal_lst_multiple)))
-            global_max = np.max(flat)  # Global maximum across all signals
+            global_max = np.nanmax(flat)  # Global maximum across all signals
 
             for i in range(len(self.signal_lst_multiple)):
                 self.signal_lst_multiple[i] = [x / global_max * 100 for x in self.signal_lst_multiple[i]]

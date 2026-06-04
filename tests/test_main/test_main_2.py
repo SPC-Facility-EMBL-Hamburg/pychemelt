@@ -35,7 +35,7 @@ scalings_factors = np.array([1,0.95,1,1.1,1,1,1,0.96])
 def aux_create_pychem_sim(params,concs,signal_error=0.0005):
 
     # Calculate signal range for proper y-axis scaling
-    temp_range = np.linspace(20, 80, 60)
+    temp_range = np.linspace(20, 81, 61)
     temp_range_K = temp_range + 273.15
     signal_list = []
     temp_list   = []
@@ -51,6 +51,8 @@ def aux_create_pychem_sim(params,concs,signal_error=0.0005):
 
         # Add gaussian error to PROTEIN concentration
         y *= scalings_factors[i]
+
+        temp_range[-1] = np.nan # To test that the code can handle NaN values in the temperature array
 
         signal_list.append(y)
         temp_list.append(temp_range)

@@ -197,11 +197,11 @@ class Sample:
         # For each key in temp_data_dic, find if the key already exists in self.temp_dic and append the data
         for k, v in temp_data_dic.items():
 
-            min_temp_v = np.min(v)
+            min_temp_v = np.nanmin(v)
             max_temp_v = np.max(v)
 
-            self.global_min_temp = min(min_temp_v, self.global_min_temp)
-            self.global_max_temp = max(max_temp_v, self.global_max_temp)
+            self.global_min_temp = np.nanmin([min_temp_v, self.global_min_temp])
+            self.global_max_temp = np.nanmax([max_temp_v, self.global_max_temp])
 
             # make sure we have a list of arrays
             v = [np.array(x) for x in v]
@@ -275,6 +275,12 @@ class Sample:
             signal = self.signal_dic[signal_name]
             temp = self.temp_dic[signal_name]
 
+            for i in range(len(signal)):
+
+                mask = ~np.isnan(signal[i]) & ~np.isnan(temp[i])
+                signal[i] = signal[i][mask]
+                temp[i] = temp[i][mask]
+
             signals.append(signal)
             temps.append(temp)
 
@@ -318,6 +324,7 @@ class Sample:
 
         self.user_min_temp = min_temp
         self.user_max_temp = max_temp
+
 
         return None
 
