@@ -302,6 +302,14 @@ def test_create_fit_report():
 
     assert isinstance(sample.fit_report, str)
 
+def test_create_fit_report_with_neff():
+    
+    sample.fit_report = None # Reset fit report to force re-creation with neff
+    
+    sample.create_fit_report(neff=20)
+
+    assert isinstance(sample.fit_report, str)
+
 def test_create_fit_report_err():
 
     sample.result = None # Force error

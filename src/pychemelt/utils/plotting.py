@@ -802,10 +802,8 @@ def plot_baselines(
         xs = pychemelt_sample.temp_lst_multiple[i]
         ys = pychemelt_sample.signal_lst_multiple[i]
 
-
         # Setting the correct temperature frame for the modeling
         temperature_K_ref = shift_temperature(np.array(xs))
-
 
         # Getting the fitting windows
         fitting_window_end_native = np.array(xs).min() +  pychemelt_sample.window_range_native

@@ -740,7 +740,9 @@ class Monomer(Sample):
             high_bounds_p2Ns = re_arrange_params(high_bounds_p2Ns, self.nr_signals)
 
             for kNs_i, low_bounds_kNs_i, high_bounds_kNs_i in zip(p2Ns, low_bounds_p2Ns, high_bounds_p2Ns):
-                p0 = np.append(p0, np.median(kNs_i))
+                #p0 = np.append(p0, np.median(kNs_i))
+                # use a weighted average that gives more weight to the signals with lower denaturant concentrations, as they are more likely to show a clear slope
+                p0 = np.append(p0, np.average(kNs_i, weights=1/(np.array(self.denaturant_concentrations)+0.1)))
                 low_bounds = np.append(low_bounds, np.min(low_bounds_kNs_i))
                 high_bounds = np.append(high_bounds, np.max(high_bounds_kNs_i))
 
@@ -751,7 +753,9 @@ class Monomer(Sample):
             high_bounds_p2Us = re_arrange_params(high_bounds_p2Us, self.nr_signals)
 
             for kUs_i, low_bounds_kUs_i, high_bounds_kUs_i in zip(p2Us, low_bounds_p2Us, high_bounds_p2Us):
-                p0 = np.append(p0, np.median(kUs_i))
+                #p0 = np.append(p0, np.median(kUs_i))
+                # Use a weighted average that gives more weight to the signals with higher denaturant concentrations, as they are more likely to show a clear slope
+                p0 = np.append(p0, np.average(kUs_i, weights=1/(1/(np.array(self.denaturant_concentrations)+0.1))))
                 low_bounds = np.append(low_bounds, np.min(low_bounds_kUs_i))
                 high_bounds = np.append(high_bounds, np.max(high_bounds_kUs_i))
 
@@ -762,7 +766,9 @@ class Monomer(Sample):
             high_bounds_p3Ns = re_arrange_params(high_bounds_p3Ns, self.nr_signals)
 
             for qNs_i, low_bounds_qNs_i, high_bounds_qNs_i in zip(p3Ns, low_bounds_p3Ns, high_bounds_p3Ns):
-                p0 = np.append(p0, np.median(qNs_i))
+                #p0 = np.append(p0, np.median(qNs_i))
+                # Use a weighted average that gives more weight to the signals with lower denaturant concentrations, as they are more likely to show a clear curvature
+                p0 = np.append(p0, np.average(qNs_i, weights=1/(np.array(self.denaturant_concentrations)+0.1)))
                 low_bounds = np.append(low_bounds, np.min(low_bounds_qNs_i))
                 high_bounds = np.append(high_bounds, np.max(high_bounds_qNs_i))
 
@@ -773,7 +779,9 @@ class Monomer(Sample):
             high_bounds_p3Us = re_arrange_params(high_bounds_p3Us, self.nr_signals)
 
             for qUs_i, low_bounds_qUs_i, high_bounds_qUs_i in zip(p3Us, low_bounds_p3Us, high_bounds_p3Us):
-                p0 = np.append(p0, np.median(qUs_i))
+                #p0 = np.append(p0, np.median(qUs_i))
+                # Use a weighted average that gives more weight to the signals with higher denaturant concentrations, as they are more likely to show a clear curvature
+                p0 = np.append(p0, np.average(qUs_i, weights=1/(1/(np.array(self.denaturant_concentrations)+0.1))))
                 low_bounds = np.append(low_bounds, np.min(low_bounds_qUs_i))
                 high_bounds = np.append(high_bounds, np.max(high_bounds_qUs_i))
 
@@ -1513,7 +1521,14 @@ class Monomer(Sample):
 
         return signal_df
 
-    def compare_models(self,native_baseline_types,unfolded_baseline_types,global_model_type,neff=None,gamma=1,**kwargs):
+    def compare_models(
+            self,
+            native_baseline_types,
+            unfolded_baseline_types,
+            global_model_types=['global', 'global_global', 'global_global_global'],
+            neff=None,
+            gamma=1,
+            **kwargs):
 
         """
         Compare different models with different baseline types and global/local parameters by fitting them and comparing their BIC values.
@@ -1524,8 +1539,8 @@ class Monomer(Sample):
             List of native baseline types to compare. Each element should be one of 'linear', 'quadratic', 'exponential', or 'constant'.
         unfolded_baseline_types : list of str
             List of unfolded baseline types to compare. Each element should be one of 'linear', 'quadratic', 'exponential', or 'constant'.
-        global_model_type : str
-            Type of global model to fit. Should be one of 'global', 'global_global', or 'global_global_global'.
+        global_model_types : list of str
+            List of global model types to fit. Each element should be one of 'global', 'global_global', or 'global_global_global'.
         neff : int, optional
             Effective number of data points to use for AIC, BIC, and EBIC calculation. If None, the total number of data points across all signals and temperatures will be used.
         gamma : float, optional
@@ -1577,24 +1592,25 @@ class Monomer(Sample):
                     n_total = monomer_copy.result.ndata
                     ebic = extended_bic(monomer_copy.result, n_total, gamma=gamma)
 
-                # Store the results in the list
-                results.append({
-                    'Native Baseline': native_baseline_type,
-                    'Unfolded Baseline': unfolded_baseline_type,
-                    'Global Model Type': 'Local slopes and local intercepts',
-                    'Tm': monomer_copy.result.params['Tm'].value,
-                    'ΔHm': monomer_copy.result.params['DHm'].value,
-                    'ΔCp': monomer_copy.result.params['Cp0'].value if 'Cp0' in monomer_copy.result.params else monomer_copy.cp_value,
-                    'm-value': monomer_copy.result.params['m0'].value,
-                    'AIC': aic,
-                    'BIC': bic,
-                    'EBIC': ebic,
-                    'Reduced χ²': monomer_copy.result.redchi,
-                    'Fit Object': monomer_copy.result  # Store the fit object for potential later use
-                })
+                # Store the results in the list if the global option is selected
+                if 'global' in global_model_types:
+                    results.append({
+                        'Native Baseline': native_baseline_type,
+                        'Unfolded Baseline': unfolded_baseline_type,
+                        'Global Model Type': 'Local slopes and local intercepts',
+                        'Tm': monomer_copy.result.params['Tm'].value,
+                        'ΔHm': monomer_copy.result.params['DHm'].value,
+                        'ΔCp': monomer_copy.result.params['Cp0'].value if 'Cp0' in monomer_copy.result.params else monomer_copy.cp_value,
+                        'm-value': monomer_copy.result.params['m0'].value,
+                        'AIC': aic,
+                        'BIC': bic,
+                        'EBIC': ebic,
+                        'Reduced χ²': monomer_copy.result.redchi,
+                        'Fit Object': monomer_copy.result  # Store the fit object for potential later use
+                    })
 
                 # If the global-global fit is done, we can also do the global-global fit for the same baseline types
-                if global_model_type in ['global_global', 'global_global_global']:
+                if 'global_global' in global_model_types or 'global_global_global' in global_model_types:
 
                     monomer_copy.fit_thermal_unfolding_global_global()
 
@@ -1611,22 +1627,25 @@ class Monomer(Sample):
                         n_total = monomer_copy.result.ndata
                         ebic = extended_bic(monomer_copy.result, n_total, gamma=gamma)
 
-                    results.append({
-                        'Native Baseline': native_baseline_type,
-                        'Unfolded Baseline': unfolded_baseline_type,
-                        'Global Model Type': 'Global slopes and local intercepts',
-                        'Tm': monomer_copy.result.params['Tm'].value,
-                        'ΔHm': monomer_copy.result.params['DHm'].value,
-                        'ΔCp': monomer_copy.result.params['Cp0'].value if 'Cp0' in monomer_copy.result.params else monomer_copy.cp_value,
-                        'm-value': monomer_copy.result.params['m0'].value,
-                        'AIC': aic,
-                        'BIC': bic,
-                        'EBIC': ebic,
-                        'Reduced χ²': monomer_copy.result.redchi,
-                        'Fit Object': monomer_copy.result  # Store the fit object for potential later use
-                    })
+                    # Store the results in the list if the global-global option is selected
+                    if 'global_global' in global_model_types:
 
-                    if global_model_type == 'global_global_global':
+                        results.append({
+                            'Native Baseline': native_baseline_type,
+                            'Unfolded Baseline': unfolded_baseline_type,
+                            'Global Model Type': 'Global slopes and local intercepts',
+                            'Tm': monomer_copy.result.params['Tm'].value,
+                            'ΔHm': monomer_copy.result.params['DHm'].value,
+                            'ΔCp': monomer_copy.result.params['Cp0'].value if 'Cp0' in monomer_copy.result.params else monomer_copy.cp_value,
+                            'm-value': monomer_copy.result.params['m0'].value,
+                            'AIC': aic,
+                            'BIC': bic,
+                            'EBIC': ebic,
+                            'Reduced χ²': monomer_copy.result.redchi,
+                            'Fit Object': monomer_copy.result  # Store the fit object for potential later use
+                        })
+
+                    if 'global_global_global' in global_model_types:
 
                         monomer_copy.fit_thermal_unfolding_global_global_global()
 
