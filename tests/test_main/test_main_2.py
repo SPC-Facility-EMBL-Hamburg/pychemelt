@@ -140,6 +140,26 @@ def test_estimate_baseline_parameters():
 
     np.testing.assert_allclose(pychem_sim.third_param_Ns_per_signal[0][0], params['p4_N'], rtol=0.1, atol=0)
 
+def test_estimate_baseline_parameters_with_tuple_windows():
+
+    params = def_params.copy()
+
+    pychem_sim = aux_create_pychem_sim(params, def_concs)
+
+    pychem_sim.estimate_baseline_parameters(
+        native_baseline_type='linear',
+        unfolded_baseline_type='linear',
+        window_range_native=(20, 30),
+        window_range_unfolded=(70, 80)
+    )
+
+    assert pychem_sim.window_range_native == (20, 30)
+    assert pychem_sim.window_range_unfolded == (70, 80)
+    assert len(pychem_sim.first_param_Ns_per_signal[0]) == len(def_concs)
+    assert len(pychem_sim.first_param_Us_per_signal[0]) == len(def_concs)
+    assert len(pychem_sim.second_param_Ns_per_signal[0]) == len(def_concs)
+    assert len(pychem_sim.second_param_Us_per_signal[0]) == len(def_concs)
+
 # --------- #  Create global pychem_sim object for the rest of tests  # --------- #
 sample = aux_create_pychem_sim(def_params,def_concs)
 sample.estimate_derivative()

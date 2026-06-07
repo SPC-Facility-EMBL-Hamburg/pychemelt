@@ -140,3 +140,4 @@ def test_plot_ubaselines_concentrations():
 
     assert fig is not None
     assert isinstance(fig, go.Figure)
+

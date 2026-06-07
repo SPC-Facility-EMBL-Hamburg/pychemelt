@@ -5,6 +5,7 @@ from pychemelt.utils.processing import (
     guess_Tm_from_derivative,
     get_colors_from_numeric_values,
     fit_local_thermal_unfolding_to_signal_lst,
+    estimate_signal_baseline_params,
     adjust_value_to_interval,
     parse_number,
     are_all_strings_numeric,
@@ -106,4 +107,88 @@ def test_transform_to_list():
     # raise error if input is not string, list, float, int or None
     with pytest.raises(ValueError):
         transform_to_list({'key': 'value'})
+
+def test_estimate_signal_baseline_params_tuple_windows():
+
+    temp = np.arange(0.0, 10.0)
+    signal = 2.0 * temp + 1.0
+
+    p1Ns, p1Us, p2Ns, p2Us, p3Ns, p3Us = estimate_signal_baseline_params(
+        signal_lst=[signal],
+        temp_lst=[temp],
+        native_baseline_type='linear',
+        unfolded_baseline_type='linear',
+        window_range_native=(2.0, 4.0),
+        window_range_unfolded=(6.0, 8.0)
+    )
+
+    assert len(p1Ns) == 1
+    assert len(p1Us) == 1
+    assert len(p2Ns) == 1
+    assert len(p2Us) == 1
+    assert len(p3Ns) == 0
+    assert len(p3Us) == 0
+
+    np.testing.assert_allclose(p2Ns[0], 2.0, rtol=1e-3, atol=1e-6)
+    np.testing.assert_allclose(p2Us[0], 2.0, rtol=1e-3, atol=1e-6)
+
+def test_estimate_signal_baseline_params_invalid_tuple_window():
+
+    temp = np.arange(0.0, 10.0)
+    signal = temp.copy()
+
+    with pytest.raises(ValueError):
+        estimate_signal_baseline_params(
+            signal_lst=[signal],
+            temp_lst=[temp],
+            native_baseline_type='constant',
+            unfolded_baseline_type='constant',
+            window_range_native=(2.0,),
+            window_range_unfolded=3.0
+        )
+
+def test_estimate_signal_baseline_params_invalid_tuple_order():
+
+    temp = np.arange(0.0, 10.0)
+    signal = temp.copy()
+
+    with pytest.raises(ValueError, match='high > low'):
+        estimate_signal_baseline_params(
+            signal_lst=[signal],
+            temp_lst=[temp],
+            native_baseline_type='constant',
+            unfolded_baseline_type='constant',
+            window_range_native=(5.0, 5.0),
+            window_range_unfolded=3.0
+        )
+
+def test_estimate_signal_baseline_params_invalid_scalar_width():
+
+    temp = np.arange(0.0, 10.0)
+    signal = temp.copy()
+
+    with pytest.raises(ValueError, match='width must be > 0'):
+        estimate_signal_baseline_params(
+            signal_lst=[signal],
+            temp_lst=[temp],
+            native_baseline_type='constant',
+            unfolded_baseline_type='constant',
+            window_range_native=0.0,
+            window_range_unfolded=3.0
+        )
+
+def test_estimate_signal_baseline_params_window_with_no_points():
+
+    temp = np.arange(0.0, 10.0)
+    signal = temp.copy()
+
+    with pytest.raises(ValueError, match='No temperature points found'):
+        estimate_signal_baseline_params(
+            signal_lst=[signal],
+            temp_lst=[temp],
+            native_baseline_type='constant',
+            unfolded_baseline_type='constant',
+            window_range_native=(20.0, 30.0),
+            window_range_unfolded=3.0
+        )
 

@@ -1575,6 +1575,8 @@ class Monomer(Sample):
                 monomer_copy.estimate_baseline_parameters(
                     native_baseline_type,
                     unfolded_baseline_type,
+                    self.window_range_native,
+                    self.window_range_unfolded
                 )
                 
                 monomer_copy.fit_thermal_unfolding_global(**kwargs)

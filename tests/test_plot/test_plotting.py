@@ -1,3 +1,5 @@
+from random import sample
+
 import plotly.graph_objs as go
 import pytest
 
@@ -100,6 +102,11 @@ def test_plot_residuals():
     sample.n_residues = 130
     sample.guess_Cp()
     sample.set_signal_id()
+
+    # Raise value error if plot residuals is called before fitting
+    with pytest.raises(ValueError):
+        plot_residuals(sample)
+
     sample.fit_thermal_unfolding_local()
     sample.fit_thermal_unfolding_global()
 
@@ -107,6 +114,8 @@ def test_plot_residuals():
 
     assert fig is not None
     assert isinstance(fig, go.Figure)
+
+    sample.denaturant_concentrations /= 1e12 # To force micromolar legend
 
     fig = plot_residuals(sample, individual_curves=True)
 

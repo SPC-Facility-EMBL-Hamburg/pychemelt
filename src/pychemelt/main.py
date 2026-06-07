@@ -115,8 +115,8 @@ class Sample:
 
         self.global_fit_params = None
 
-        self.global_min_temp = 20
-        self.global_max_temp = 100
+        self.global_min_temp = np.nan
+        self.global_max_temp = np.nan
 
         self.n_residues = 0
 
@@ -491,10 +491,14 @@ class Sample:
             one of 'constant', 'linear', 'quadratic', 'exponential'
         unfolded_baseline_type : str
             one of 'constant', 'linear', 'quadratic', 'exponential'
-        window_range_native : int, optional
-            Range of the window (in degrees) to estimate the baselines and slopes of the native state
-        window_range_unfolded : int, optional
-            Range of the window (in degrees) to estimate the baselines and slopes of the unfolded state
+        window_range_native : int, float, or tuple(float, float), optional
+            If scalar, range (in degrees) from the minimum temperature used to estimate
+            the native-state baseline. If tuple, interpreted as an explicit
+            temperature interval (min_temp, max_temp).
+        window_range_unfolded : int, float, or tuple(float, float), optional
+            If scalar, range (in degrees) from the maximum temperature used to estimate
+            the unfolded-state baseline. If tuple, interpreted as an explicit
+            temperature interval (min_temp, max_temp).
 
         Notes
         -----

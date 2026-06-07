@@ -402,10 +402,12 @@ def estimate_signal_baseline_params(
         List of signal arrays
     temp_lst : list of np.ndarray
         List of temperature arrays
-    window_range_native : float
-        Range of the temperature window to estimate the native state baseline
-    window_range_unfolded : float
-        Range of the temperature window to estimate the unfolded state baseline
+    window_range_native : float or tuple(float, float)
+        If scalar, use temperatures lower than min(temp) + window_range_native.
+        If tuple, use only temperatures inside (low, high).
+    window_range_unfolded : float or tuple(float, float)
+        If scalar, use temperatures higher than max(temp) - window_range_unfolded.
+        If tuple, use only temperatures inside (low, high).
     native_baseline_type : str
         options: 'constant', 'linear', 'quadratic', 'exponential'
     unfolded_baseline_type : str
@@ -419,6 +421,35 @@ def estimate_signal_baseline_params(
         Lists of estimated parameters (p1Ns, p1Us, p2Ns, p2Us, p3Ns, p3Us).
     """
 
+    def _build_window_mask(temp, window, state_name):
+        # Scalar window: use edge-based range; tuple/list of length 2: use explicit temperature interval.
+        if isinstance(window, (tuple, list, np.ndarray)):
+            if len(window) != 2:
+                raise ValueError(f"{state_name} baseline window tuple must have exactly two values.")
+
+            low, high = float(window[0]), float(window[1])
+            if high <= low:
+                raise ValueError(f"{state_name} baseline window tuple must satisfy high > low.")
+
+            mask = np.logical_and(temp >= low, temp <= high)
+        else:
+            width = float(window)
+            if width <= 0:
+                raise ValueError(f"{state_name} baseline window width must be > 0.")
+
+            if state_name == 'native':
+                mask = temp < np.min(temp) + width
+            else:
+                mask = temp > np.max(temp) - width
+
+        if not np.any(mask):
+            raise ValueError(
+                f"No temperature points found for {state_name} baseline window {window}. "
+                f"Available range is [{np.min(temp):.3f}, {np.max(temp):.3f}]."
+            )
+
+        return mask
+
     p1Ns  = []
     p1Us  = []
     p2Ns  = []
@@ -428,14 +459,17 @@ def estimate_signal_baseline_params(
 
     for s,t in zip(signal_lst,temp_lst):
 
-        signal_native = s[t < np.min(t) + window_range_native]
-        temp_native   = t[t < np.min(t) + window_range_native]
+        native_mask = _build_window_mask(t, window_range_native, 'native')
+        unfolded_mask = _build_window_mask(t, window_range_unfolded, 'unfolded')
+
+        signal_native = s[native_mask]
+        temp_native   = t[native_mask]
 
         # Shift temperature to be centered at Tref !!! defined in constants.py
         temp_native = shift_temperature(temp_native)
 
-        signal_denat  = s[t > np.max(t) - window_range_unfolded]
-        temp_denat    = t[t > np.max(t) - window_range_unfolded]
+        signal_denat  = s[unfolded_mask]
+        temp_denat    = t[unfolded_mask]
 
         # Shift temperature to be centered at Tref !!! defined in constants.py
         temp_denat = shift_temperature(temp_denat)
