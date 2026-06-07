@@ -10,6 +10,11 @@ def test_fit_demo():
 
     sample = Sample()
     sample.read_multiple_files('./test_files/nDSFdemoFile.xlsx')
+
+    # Verify that global_min_temp and global_max_temp are updated correctly
+    assert sample.global_min_temp == 25
+    assert sample.global_max_temp == 95
+
     sample.set_denaturant_concentrations()
 
     sample.set_signal(['350nm'])

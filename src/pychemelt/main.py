@@ -198,7 +198,7 @@ class Sample:
         for k, v in temp_data_dic.items():
 
             min_temp_v = np.nanmin(v)
-            max_temp_v = np.max(v)
+            max_temp_v = np.nanmax(v)
 
             self.global_min_temp = np.nanmin([min_temp_v, self.global_min_temp])
             self.global_max_temp = np.nanmax([max_temp_v, self.global_max_temp])
