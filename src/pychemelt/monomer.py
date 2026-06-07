@@ -401,7 +401,7 @@ class Monomer(Sample):
 
         params_names = [
             'Tm (°C)',
-            'ΔH (kcal/mol)',
+            'ΔHm (kcal/mol)',
             'Cp (kcal/mol/°C)',
             'm-value (kcal/mol/M)']
 
@@ -1608,7 +1608,7 @@ class Monomer(Sample):
                         'BIC': bic,
                         'EBIC': ebic,
                         'Reduced χ²': monomer_copy.result.redchi,
-                        'Fit Object': monomer_copy.result  # Store the fit object for potential later use
+                        'Fit Object': monomer_copy  # Store the Monomer object for potential later use
                     })
 
                 # If the global-global fit is done, we can also do the global-global fit for the same baseline types
@@ -1644,7 +1644,7 @@ class Monomer(Sample):
                             'BIC': bic,
                             'EBIC': ebic,
                             'Reduced χ²': monomer_copy.result.redchi,
-                            'Fit Object': monomer_copy.result  # Store the fit object for potential later use
+                            'Fit Object': monomer_copy  # Store the Monomer object for potential later use
                         })
 
                     if 'global_global_global' in global_model_types:
@@ -1676,7 +1676,7 @@ class Monomer(Sample):
                             'BIC': bic,
                             'EBIC': ebic,
                             'Reduced χ²': monomer_copy.result.redchi,
-                            'Fit Object': monomer_copy.result  # Store the fit object for potential later use
+                            'Fit Object': monomer_copy  # Store the Monomer object for potential later use
                         })
 
         # Convert the results to a DataFrame and sort by EBIC
