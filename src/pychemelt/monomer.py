@@ -1599,7 +1599,7 @@ class Monomer(Sample):
                     results.append({
                         'Native Baseline': native_baseline_type,
                         'Unfolded Baseline': unfolded_baseline_type,
-                        'Global Model Type': 'Local slopes and local intercepts',
+                        'Model Type': 'Local slopes and local intercepts',
                         'Tm': monomer_copy.result.params['Tm'].value,
                         'ΔHm': monomer_copy.result.params['DHm'].value,
                         'ΔCp': monomer_copy.result.params['Cp0'].value if 'Cp0' in monomer_copy.result.params else monomer_copy.cp_value,
@@ -1608,7 +1608,7 @@ class Monomer(Sample):
                         'BIC': bic,
                         'EBIC': ebic,
                         'Reduced χ²': monomer_copy.result.redchi,
-                        'Fit Object': monomer_copy  # Store the Monomer object for potential later use
+                        'Fit Object': deepcopy(monomer_copy)  # Store the Monomer object for potential later use
                     })
 
                 # If the global-global fit is done, we can also do the global-global fit for the same baseline types
@@ -1635,7 +1635,7 @@ class Monomer(Sample):
                         results.append({
                             'Native Baseline': native_baseline_type,
                             'Unfolded Baseline': unfolded_baseline_type,
-                            'Global Model Type': 'Global slopes and local intercepts',
+                            'Model Type': 'Global slopes and local intercepts',
                             'Tm': monomer_copy.result.params['Tm'].value,
                             'ΔHm': monomer_copy.result.params['DHm'].value,
                             'ΔCp': monomer_copy.result.params['Cp0'].value if 'Cp0' in monomer_copy.result.params else monomer_copy.cp_value,
@@ -1644,7 +1644,7 @@ class Monomer(Sample):
                             'BIC': bic,
                             'EBIC': ebic,
                             'Reduced χ²': monomer_copy.result.redchi,
-                            'Fit Object': monomer_copy  # Store the Monomer object for potential later use
+                            'Fit Object': deepcopy(monomer_copy)  # Store the Monomer object for potential later use
                         })
 
                     if 'global_global_global' in global_model_types:
@@ -1667,7 +1667,7 @@ class Monomer(Sample):
                         results.append({
                             'Native Baseline': native_baseline_type,
                             'Unfolded Baseline': unfolded_baseline_type,
-                            'Global Model Type': 'Global slopes and global intercepts',
+                            'Model Type': 'Global slopes and global intercepts',
                             'Tm': monomer_copy.result.params['Tm'].value,
                             'ΔHm': monomer_copy.result.params['DHm'].value,
                             'ΔCp': monomer_copy.result.params['Cp0'].value if 'Cp0' in monomer_copy.result.params else monomer_copy.cp_value,
@@ -1676,7 +1676,7 @@ class Monomer(Sample):
                             'BIC': bic,
                             'EBIC': ebic,
                             'Reduced χ²': monomer_copy.result.redchi,
-                            'Fit Object': monomer_copy  # Store the Monomer object for potential later use
+                            'Fit Object': deepcopy(monomer_copy)  # Store the Monomer object for potential later use
                         })
 
         # Convert the results to a DataFrame and sort by EBIC
