@@ -194,7 +194,7 @@ def test_compare_models():
     best_model = compare_df.iloc[0]
     assert best_model['Native Baseline']   == 'exponential'
     assert best_model['Unfolded Baseline'] == 'exponential'
-    assert best_model['Global Model Type'] == 'Global slopes and global intercepts'
+    assert best_model['Model Type'] == 'Global slopes and global intercepts'
 
     # Test it with additional arguments for the fit
     kwargs = {'dh_limits': [100,150], 'tm_limits': [60,70], 'cp_limits': [1.5,2.5]}
@@ -209,7 +209,7 @@ def test_compare_models():
     best_model = compare_df.iloc[0]
     assert best_model['Native Baseline']   == 'exponential'
     assert best_model['Unfolded Baseline'] == 'exponential'
-    assert best_model['Global Model Type'] == 'Global slopes and global intercepts'
+    assert best_model['Model Type'] == 'Global slopes and global intercepts'
 
 def test_compare_models_with_neff():
 
@@ -230,7 +230,7 @@ def test_compare_models_with_neff():
     best_model = compare_df.iloc[0]
     assert best_model['Native Baseline']   == 'exponential'
     assert best_model['Unfolded Baseline'] == 'exponential'
-    assert best_model['Global Model Type'] == 'Global slopes and global intercepts'
+    assert best_model['Model Type'] == 'Global slopes and global intercepts'
 
     # Test it with additional arguments for the fit
     kwargs = {'dh_limits': [100,150], 'tm_limits': [60,70], 'cp_limits': [1.5,2.5]}
@@ -246,4 +246,4 @@ def test_compare_models_with_neff():
     best_model = compare_df.iloc[0]
     assert best_model['Native Baseline']   == 'exponential'
     assert best_model['Unfolded Baseline'] == 'exponential'
-    assert best_model['Global Model Type'] == 'Global slopes and global intercepts'
+    assert best_model['Model Type'] == 'Global slopes and global intercepts'
