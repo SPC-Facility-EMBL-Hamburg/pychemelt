@@ -187,7 +187,7 @@ def test_compare_models():
     compare_df = pychem_sim.comparison_df
 
     # Check that the expected columns are present
-    expected_columns = ['Native Baseline', 'Unfolded Baseline', 'Global Model Type', 'Tm', 'ΔHm', 'ΔCp', 'm-value', 'AIC']
+    expected_columns = ['Native Baseline', 'Unfolded Baseline', 'Model Type', 'Tm', 'ΔHm', 'ΔCp', 'm-value', 'AIC']
     assert all(col in compare_df.columns for col in expected_columns)
 
     # Verify that the best model (lowest BIC) is the one with the correct baseline types and global model type
@@ -223,7 +223,7 @@ def test_compare_models_with_neff():
     compare_df = pychem_sim.comparison_df
 
     # Check that the expected columns are present
-    expected_columns = ['Native Baseline', 'Unfolded Baseline', 'Global Model Type', 'Tm', 'ΔHm', 'ΔCp', 'm-value', 'AIC']
+    expected_columns = ['Native Baseline', 'Unfolded Baseline', 'Model Type', 'Tm', 'ΔHm', 'ΔCp', 'm-value', 'AIC']
     assert all(col in compare_df.columns for col in expected_columns)
 
     # Verify that the best model (lowest BIC) is the one with the correct baseline types and global model type
