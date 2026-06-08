@@ -1345,12 +1345,12 @@ class Monomer(Sample):
 
         # Create a DataFrame to store the results, with the mean and standard deviation of the parameters across the leave-one-out fits
 
-        params = ['Tm','DH']
+        params = ['Tm','ΔHm']
         
         if self.cp_value is None:
-            params.append('Cp')
+            params.append('ΔCp')
         
-        params.append('m0')
+        params.append('m-value')
 
         if n == 0:
             self.loo_df = pd.DataFrame({
