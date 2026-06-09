@@ -139,6 +139,7 @@ def config_fig(fig,
 def plot_unfolding(
         pychemelt_sample,
         plot_derivative = False,
+    plot_baseline_df = False,
         plot_config: PlotConfig = None,
         axis_config: AxisConfig = None,
         layout_config: LayoutConfig = None,
@@ -154,6 +155,8 @@ def plot_unfolding(
         pychemelt.Sample object
     plot_derivative: bool
         Whether to plot the derivative of the signal
+    plot_baseline_df: bool
+        Whether to overlay baselines from pychemelt_sample.baseline_df (if available)
     plot_config : PlotConfig, optional
         Configuration for the overall plot
     axis_config : AxisConfig, optional
@@ -202,6 +205,14 @@ def plot_unfolding(
     nrows = min(nrows, n_subplots)  # Do not exceed the number of plots - case n equal 1
 
     ncols = int(np.ceil(n_subplots / nrows))
+
+    baseline_df = getattr(pychemelt_sample, "baseline_df", None)
+    plot_baseline_df = (
+        plot_baseline_df
+        and not plot_derivative
+        and baseline_df is not None
+        and {"Temperature (°C)", "Baseline", "State", "Signal"}.issubset(set(baseline_df.columns))
+    )
 
     row_arr = np.arange(1, nrows + 1)
     col_arr = np.arange(1, ncols + 1)
@@ -273,6 +284,26 @@ def plot_unfolding(
                     go.Scatter(
                         x=x, y=ys_fit_j, mode='lines',
                         line=dict(color='black', width=plot_config.line_width),
+                        showlegend=False,
+                        hoverinfo='skip',
+                        hovertemplate=None
+                    ),
+                    row=row, col=col
+                )
+
+        if plot_baseline_df:
+            signal_name = pychemelt_sample.signal_names[i]
+            signal_baseline_df = baseline_df[baseline_df['Signal'] == signal_name]
+
+            for state_name in ['Native', 'Unfolded']:
+                state_df = signal_baseline_df[signal_baseline_df['State'] == state_name]
+
+                fig.add_trace(
+                    go.Scatter(
+                        x=state_df['Temperature (°C)'].to_numpy(),
+                        y=state_df['Baseline'].to_numpy(),
+                        mode='lines',
+                        line=dict(color='red', width=plot_config.line_width, dash='dash'),
                         showlegend=False,
                         hoverinfo='skip',
                         hovertemplate=None

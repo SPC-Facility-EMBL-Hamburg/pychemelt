@@ -282,6 +282,9 @@ def test_leave_one_out_cross_validation():
 
         assert lower_bound <= value <= upper_bound, f"Parameter {sample.loo_df.iloc[i,0]}: {value} not in [{lower_bound}, {upper_bound}] for LOO CV"
 
+        # Verify parameter names
+        assert sample.loo_df.iloc[:,0].to_list() == ['Tm (°C)', 'ΔHm (kcal / mol)', 'ΔCp (kcal / mol / K)', 'm-value (kcal / mol / M)']
+
 def test_signal_to_df():
 
     signal_type_options = ['raw','derivative']

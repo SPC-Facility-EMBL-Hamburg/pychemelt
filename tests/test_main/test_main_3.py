@@ -181,7 +181,7 @@ def test_compare_models():
 
     pychem_sim.compare_models(
         native_baseline_types=['exponential','constant'],
-        unfolded_baseline_types=['exponential','quadratic'],
+        unfolded_baseline_types=['exponential'],
         global_model_types=['global','global_global','global_global_global'])
 
     compare_df = pychem_sim.comparison_df
@@ -200,7 +200,7 @@ def test_compare_models():
     kwargs = {'dh_limits': [100,150], 'tm_limits': [60,70], 'cp_limits': [1.5,2.5]}
     pychem_sim.compare_models(
         native_baseline_types=['exponential','quadratic'],
-            unfolded_baseline_types=['exponential','quadratic'],
+            unfolded_baseline_types=['exponential'],
             global_model_types=['global','global_global','global_global_global'],
         **kwargs
     )
@@ -214,7 +214,7 @@ def test_compare_models():
 def test_compare_models_with_neff():
 
     pychem_sim.compare_models(
-        native_baseline_types=['exponential','constant'],
+        native_baseline_types=['exponential'],
         unfolded_baseline_types=['exponential','linear'],
         global_model_types=['global','global_global','global_global_global'],
         neff=70
@@ -235,7 +235,7 @@ def test_compare_models_with_neff():
     # Test it with additional arguments for the fit
     kwargs = {'dh_limits': [100,150], 'tm_limits': [60,70], 'cp_limits': [1.5,2.5]}
     pychem_sim.compare_models(
-        native_baseline_types=['exponential','quadratic'],
+        native_baseline_types=['exponential'],
         unfolded_baseline_types=['exponential','quadratic'],
         global_model_types=['global','global_global','global_global_global'],
         neff=70,

@@ -20,7 +20,8 @@ from .utils.math import (
     relative_errors,
     find_line_outliers,
     aic_bic_eff,
-    extended_bic
+    extended_bic,
+    shift_temperature
 )
 
 from .utils.processing import (
@@ -32,7 +33,8 @@ from .utils.processing import (
     subset_data,
     transform_to_list,
     ci_dict_to_summary_df,
-    re_arrange_loo_initial_params
+    re_arrange_loo_initial_params,
+    find_baseline_params
 )
 
 from .utils.fitting import (
@@ -249,8 +251,10 @@ class Monomer(Sample):
 
             Cp0 = m if m > 0 else -1
 
+            expected_lower_Cp = 0.3 if np.max(self.Tms) > 100 else expected_Cp0 / 1.6
+
             # Verify that the initial Cp is between the expected range
-            if Cp0 < expected_Cp0 / 1.5 or Cp0 > expected_Cp0 * 1.5:
+            if Cp0 < expected_lower_Cp or Cp0 > expected_Cp0 * 1.5:
                 Cp0 = expected_Cp0
 
         except:
@@ -258,7 +262,7 @@ class Monomer(Sample):
             Cp0 = expected_Cp0
 
         # Cp0 needs to be positive
-        Cp0 = max(Cp0, 0)
+        Cp0 = max(Cp0, 0.3)
 
         self.Cp0 = Cp0
 
@@ -312,7 +316,7 @@ class Monomer(Sample):
         self.guess_Cp()
 
         # Apply a first fitting round to obtain initial estimates for the thermodynamic parameters
-        self.fit_thermal_unfolding_global()
+        self.fit_thermal_unfolding_global(predict_baselines=False)
 
         self.thermodynamic_params_guess = self.global_fit_params[:4]
 
@@ -354,7 +358,8 @@ class Monomer(Sample):
             cp_limits=None,
             dh_limits=None,
             tm_limits=None,
-            cp_value=None):
+            cp_value=None,
+            predict_baselines=True):
 
         """
         Fit the thermal unfolding of the sample using the signal and temperature data
@@ -642,9 +647,12 @@ class Monomer(Sample):
         self.kwargs_fit = kwargs
         self.fit_fx = fit_fx
 
+        if predict_baselines:
+            self.predict_baselines()
+
         return None
 
-    def fit_thermal_unfolding_global_global(self):
+    def fit_thermal_unfolding_global_global(self, predict_baselines=True):
 
         """
         Fit the thermal unfolding of the sample using the signal and temperature data
@@ -858,11 +866,15 @@ class Monomer(Sample):
         self.kwargs_fit = kwargs
         self.fit_fx = fit_fx
 
+        if predict_baselines:
+            self.predict_baselines()
+
         return None
 
     def fit_thermal_unfolding_global_global_global(
             self,
-            model_scale_factor=True):
+            model_scale_factor=True,
+            predict_baselines=True):
 
         """
         Fit the thermal unfolding of the sample using the signal and temperature data
@@ -1210,6 +1222,62 @@ class Monomer(Sample):
         self.kwargs_fit = kwargs
         self.fit_fx = fit_fx
 
+        if predict_baselines:
+            self.predict_baselines()
+
+        return None
+
+    def predict_baselines(self):
+
+        baseline_dfs = []
+
+        native_id   = np.argmin(self.denaturant_concentrations)
+        unfolded_id = np.argmax(self.denaturant_concentrations)
+
+        native_baseline_params_dict = find_baseline_params(self.params_df,mode='native')
+        unfolded_baseline_params_dict = find_baseline_params(self.params_df,mode='unfolded')
+
+        for i,signal in enumerate(self.signal_names):
+
+            native_params = native_baseline_params_dict.get(signal)
+            unfolded_params = unfolded_baseline_params_dict.get(signal)
+
+            # Find the corresponding temperature array
+            idx_native   = native_id + i * self.nr_den
+            idx_unfolded = unfolded_id + i * self.nr_den  
+
+            temp_native = self.temp_lst_expanded[idx_native]
+            temp_unfolded = self.temp_lst_expanded[idx_unfolded]
+
+            temp_native_K = shift_temperature(temp_native)
+            temp_unfolded_K = shift_temperature(temp_unfolded)
+
+            if not self.global_global_global_fit_done:
+
+                native_baseline   = self.baseline_N_fx(temp_native_K,0,0, *native_params) # 0 because the denaturant has no effect here
+                unfolded_baseline = self.baseline_U_fx(temp_unfolded_K,0,0, *unfolded_params) # 0 because the denaturant has no effect here
+
+                print(native_baseline)
+
+            else:
+
+                lowest_den_conc = np.min(self.denaturant_concentrations)
+                highest_den_conc = np.max(self.denaturant_concentrations)
+                
+                native_baseline = self.baseline_N_fx(temp_native_K,lowest_den_conc,*native_params) # 0 because the denaturant has no effect here
+                unfolded_baseline = self.baseline_U_fx(temp_unfolded_K,highest_den_conc,*unfolded_params) # 0 because the denaturant has no effect here
+
+            baseline_df = pd.DataFrame({
+                'Temperature (°C)': np.concatenate([temp_native, temp_unfolded]),
+                'Baseline': np.concatenate([native_baseline, unfolded_baseline]),
+                'State': ['Native'] * len(temp_native) + ['Unfolded'] * len(temp_unfolded),
+                'Signal': signal
+            })
+
+            baseline_dfs.append(baseline_df)
+
+        self.baseline_df = pd.concat(baseline_dfs, ignore_index=True)
+
         return None
 
     def leave_one_out_cross_validation(self):
@@ -1229,6 +1297,8 @@ class Monomer(Sample):
         n = len(self.signal_lst_expanded)
         # Correct by the number of signals
         n_corr = int(n / self.nr_signals)
+
+        n_fits = 0
 
         for i in range(n_corr):
 
@@ -1330,8 +1400,9 @@ class Monomer(Sample):
             keep_fit = tm_is_acceptable and DH_is_acceptable and m0_is_acceptable and (Cp_is_acceptable if self.cp_value is None else True)
 
             if not keep_fit:
-                n -= 1
                 continue
+            else: 
+                n_fits += 1
 
             Tms.append(Tm)
             DHs.append(DH)
@@ -1345,14 +1416,14 @@ class Monomer(Sample):
 
         # Create a DataFrame to store the results, with the mean and standard deviation of the parameters across the leave-one-out fits
 
-        params = ['Tm','ΔHm']
+        params = ['Tm (°C)','ΔHm (kcal / mol)']
         
         if self.cp_value is None:
-            params.append('ΔCp')
+            params.append('ΔCp (kcal / mol / K)')
         
-        params.append('m-value')
+        params.append('m-value (kcal / mol / M)')
 
-        if n == 0:
+        if n_fits == 0:
             self.loo_df = pd.DataFrame({
                 'Parameter': params,
                 'LOO_Mean': [np.nan for _ in params],
@@ -1377,7 +1448,7 @@ class Monomer(Sample):
             'Parameter': params,
             'Leave_one_out_mean': loo_values,
             'Leave_one_out_std': loo_std,
-            'N fits': n
+            'N fits': n_fits
         })
 
         return None
@@ -1579,7 +1650,7 @@ class Monomer(Sample):
                     self.window_range_unfolded
                 )
                 
-                monomer_copy.fit_thermal_unfolding_global(**kwargs)
+                monomer_copy.fit_thermal_unfolding_global(predict_baselines=False, **kwargs)
 
                 if neff is not None:
 
@@ -1614,7 +1685,7 @@ class Monomer(Sample):
                 # If the global-global fit is done, we can also do the global-global fit for the same baseline types
                 if 'global_global' in global_model_types or 'global_global_global' in global_model_types:
 
-                    monomer_copy.fit_thermal_unfolding_global_global()
+                    monomer_copy.fit_thermal_unfolding_global_global(predict_baselines=False)
 
                     if neff is not None:
 
@@ -1649,7 +1720,7 @@ class Monomer(Sample):
 
                     if 'global_global_global' in global_model_types:
 
-                        monomer_copy.fit_thermal_unfolding_global_global_global()
+                        monomer_copy.fit_thermal_unfolding_global_global_global(predict_baselines=False)
 
                         if neff is not None:
 

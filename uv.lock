@@ -1817,7 +1817,7 @@ wheels = [
 
 [[package]]
 name = "pychemelt"
-version = "0.1.36"
+version = "0.1.40"
 source = { editable = "." }
 dependencies = [
     { name = "lmfit" },

@@ -50,7 +50,8 @@ __all__ = [
     'is_float',
     'transform_to_list',
     'ci_dict_to_summary_df',
-    're_arrange_loo_initial_params'
+    're_arrange_loo_initial_params',
+    'find_baseline_params'
 ]
 
 def transform_to_list(element_or_list):
@@ -885,28 +886,29 @@ def ci_dict_to_summary_df(ci_dict,percentage=0.95):
     # If Tm is among the parameters, convert confidence intervals back to Celsius
     # and change the parameter name in the results for clarity
     if 'Tm' in ci_dict:
+
         ci_dict['Tm (°C)'] = []
         for sigma_val, value in ci_dict.pop('Tm'):
             value_celsius = temperature_to_celsius(value)
             ci_dict['Tm (°C)'].append((sigma_val, value_celsius))
 
-    # Replace DH for ΔH
+    # Replace DHm for ΔHm
     if 'DHm' in ci_dict:
-        ci_dict['ΔH'] = []
+        ci_dict['ΔHm (kcal / mol)'] = []
         for sigma_val, value in ci_dict.pop('DHm'):
-            ci_dict['ΔH'].append((sigma_val, value))
+            ci_dict['ΔHm (kcal / mol)'].append((sigma_val, value))
 
     # Replace Cp0 for ΔCp
     if 'Cp0' in ci_dict:
-        ci_dict['ΔCp'] = []
+        ci_dict['ΔCp (kcal / mol K)'] = []
         for sigma_val, value in ci_dict.pop('Cp0'):
-            ci_dict['ΔCp'].append((sigma_val, value))
+            ci_dict['ΔCp (kcal / mol K)'].append((sigma_val, value))
 
     # Replace m0 for m-value
     if 'm0' in ci_dict:
-        ci_dict['m-value'] = []
+        ci_dict['m-value (kcal / mol / M)'] = []
         for sigma_val, value in ci_dict.pop('m0'):
-            ci_dict['m-value'].append((sigma_val, value))
+            ci_dict['m-value (kcal / mol / M)'].append((sigma_val, value))
 
     rows = []
 
@@ -999,3 +1001,71 @@ def re_arrange_loo_initial_params(
     high_bounds = np.delete(high_bounds, id_to_exclude)
 
     return params, low_bounds, high_bounds
+
+def find_baseline_params(params_df,mode='native'):
+
+    """
+    Find the native baseline parameters in a DataFrame of fitted parameters.
+
+    Parameters
+    ----------
+    params_df : pd.DataFrame
+        DataFrame containing fitted parameters with a 'Parameter' column.
+
+    Returns
+    -------
+    dict
+        For each signal, the parameters at the lowest or highest denaturant concentration, depending on the mode ('native' or 'unfolded').
+    """
+    baseline_params = {}
+
+    # Filter parameters for the specified mode
+    params_df = params_df[params_df['Parameter'].str.contains(mode, case=False)].copy()
+
+    # Extract the signal names and their corresponding denaturant concentrations
+    # using the pattern 'intercept_native - 1e-08 - Fluo'
+
+    params_df['Signal'] = params_df['Parameter'].apply(lambda x: x.split(' - ')[-1])
+
+    def _safe_parse_denaturant(param_name):
+        try:
+            return float(param_name.split(' - ')[1])
+        except (IndexError, ValueError, TypeError):
+            return np.nan
+
+    params_df['Denaturant'] = params_df['Parameter'].apply(_safe_parse_denaturant)
+
+    # If there is at least one not nan, filter as required
+    if params_df['Denaturant'].notna().any():
+
+        # Filter by denaturant concentration depending on the mode
+        np_fx = np.min if mode == 'native' else np.max
+
+        den_conc = np_fx(params_df['Denaturant'])
+
+        # Replace all np.nan with the den_conc
+        params_df['Denaturant'] = params_df['Denaturant'].fillna(den_conc)
+        params_df = params_df[params_df['Denaturant'] == den_conc]
+
+    # For each signal, find the parameters corresponding to the lowest (for native) or highest (for unfolded) denaturant concentration
+    # and store them in a dictionary
+
+    unq_signals = params_df['Signal'].unique()
+
+    for signal in unq_signals:
+
+        signal_params = params_df[params_df['Signal'] == signal]
+
+        # If the parameter denaturant_slope_term_native or denaturant_slope_term_unfolded is present, we need to move it to the top for later 
+        # compatibility when predicting the baselines
+        if 'denaturant_slope_term_native - {}'.format(signal) in signal_params['Parameter'].values:
+            native_slope_idx = signal_params[signal_params['Parameter'] == 'denaturant_slope_term_native - {}'.format(signal)].index[0]
+            signal_params = pd.concat([signal_params.loc[[native_slope_idx]], signal_params.drop(native_slope_idx)])
+
+        if 'denaturant_slope_term_unfolded - {}'.format(signal) in signal_params['Parameter'].values:
+            unfolded_slope_idx = signal_params[signal_params['Parameter'] == 'denaturant_slope_term_unfolded - {}'.format(signal)].index[0]
+            signal_params = pd.concat([signal_params.loc[[unfolded_slope_idx]], signal_params.drop(unfolded_slope_idx)])
+
+        baseline_params[signal] = signal_params[['Value']].values.flatten()     
+                
+    return baseline_params

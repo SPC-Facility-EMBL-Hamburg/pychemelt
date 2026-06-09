@@ -118,7 +118,8 @@ def constant_baseline(dt,d,den_slope,a,*args):
         Baseline signal
     """
 
-    return a + den_slope * d
+    # We use np.zeros_like(dt) to ensure that the output has the same shape as the input temperature array
+    return a + den_slope * d + np.zeros_like(dt) 
 
 def linear_baseline(dt,d,den_slope,a,b,*args):
 

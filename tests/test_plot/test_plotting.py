@@ -49,6 +49,46 @@ def test_plot_unfolding():
     assert fig is not None
     assert isinstance(fig, go.Figure)
 
+def test_plot_unfolding_with_baseline_df():
+
+    sample = Sample()
+
+    sample.read_multiple_files('./test_files/nDSFdemoFile.xlsx')
+    sample.set_denaturant_concentrations()
+    sample.set_signal(['350nm', '330nm'])
+
+    sample.select_conditions([True for _ in range(8)] + [False for _ in range(48 - 8)])
+
+    sample.expand_multiple_signal()
+    sample.estimate_baseline_parameters(
+        native_baseline_type='quadratic',
+        unfolded_baseline_type='quadratic'
+    )
+    sample.estimate_derivative()
+    sample.guess_Tm()
+    sample.n_residues = 130
+    sample.guess_Cp()
+    sample.set_signal_id()
+    sample.fit_thermal_unfolding_local()
+    sample.fit_thermal_unfolding_global()
+    sample.predict_baselines()
+
+    fig = plot_unfolding(sample, plot_baseline_df=True)
+
+    assert fig is not None
+    assert isinstance(fig, go.Figure)
+
+    baseline_traces = [
+        trace for trace in fig.data
+        if trace.mode == 'lines'
+        and trace.line is not None
+        and trace.line.color == 'red'
+        and trace.line.dash == 'dash'
+    ]
+
+    assert len(baseline_traces) == 2 * sample.nr_signals
+    assert all(trace.showlegend is False for trace in baseline_traces)
+
 def test_plot_baselines():
     sample = Sample()
 
