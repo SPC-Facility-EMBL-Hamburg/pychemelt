@@ -2299,7 +2299,38 @@ def fit_tc_unfolding_many_signals(
 
     minimizer = lmfit.Minimizer(residuals, params, calc_covar=True)
     result = minimizer.minimize(method=method)
+    """
+    # debugging prints
+    print("success:", result.success)
+    print("errorbars:", result.errorbars)
+    print("covar:", result.covar)
+    print("redchi:", result.redchi)
+    print("nvarys:", result.nvarys)
+    print("ndata:", result.ndata)
 
+    for name, p in result.params.items():
+        print(name, p.value, p.stderr)
+
+    JTJ = result.jac.T @ result.jac
+    print(np.linalg.cond(JTJ))
+
+    jac = result.jac
+    print("rank =", np.linalg.matrix_rank(jac))
+    print("shape =", jac.shape)
+
+    U, s, VT = np.linalg.svd(result.jac, full_matrices=False)
+
+    print(s)
+
+    parnames = list(result.params.keys())
+
+    for i in [-2, -1]:
+        print(f"\nSingular vector {i}")
+        for name, coeff in zip(parnames, VT[i]):
+            if abs(coeff) > 0.1:
+                print(name, coeff)
+    # end of prints for debugging
+    """
     global_fit_params = np.array([result.params[name].value for name in param_names])
 
     cov = result.covar

@@ -1177,7 +1177,7 @@ class Monomer(Sample):
                     global_fit_params, cov, predicted, result, minimizer = fit_fx(**kwargs)
 
         rel_errors = relative_errors(global_fit_params, cov)
-
+        
         self.params_names = params_names
         self.p0 = p0
         self.low_bounds = low_bounds
@@ -1202,7 +1202,7 @@ class Monomer(Sample):
         if model_scale_factor:
 
             # signal scaled hos one sublist per selected signal type
-            signal_scaled = deepcopy(self.signal_lst_multiple)
+            signal_scaled    = deepcopy(self.signal_lst_multiple)
             predicted_scaled = deepcopy(self.predicted_lst_multiple)
 
             for value, param in zip(self.global_fit_params, self.params_names):

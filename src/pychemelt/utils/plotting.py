@@ -9,7 +9,8 @@ from plotly.subplots import make_subplots
 from .processing import (
     get_colors_from_numeric_values,
     combine_sequences,
-    oligomer_number
+    oligomer_number,
+    subset_data
 )
 
 from .math import (
@@ -139,11 +140,12 @@ def config_fig(fig,
 def plot_unfolding(
         pychemelt_sample,
         plot_derivative = False,
-    plot_baseline_df = False,
+        plot_baseline_df = False,
         plot_config: PlotConfig = None,
         axis_config: AxisConfig = None,
         layout_config: LayoutConfig = None,
-        legend_config: LegendConfig = None):
+        legend_config: LegendConfig = None,
+        use_scaled_data = False):
 
     """
     Plot the unfolding curves, including the signal and the predicted curves
@@ -164,9 +166,16 @@ def plot_unfolding(
     layout_config : LayoutConfig, optional
         Configuration for the layout
     legend_config : LegendConfig, optional
-        configuration for the legend
+        Configuration for the legend
+    use_scaled_data: bool
+        Whether to use the scaled data for plotting (if True, the scaled signal and predicted curves will be plotted instead of the raw data)
+        The scaling is obtained from the scale factor of the global-global-global fit
 
     """
+
+    # Verify that plot_scaled_data and plot_baseline_df are not both True
+    if plot_baseline_df and use_scaled_data:
+        raise ValueError("Cannot plot scaled data and baseline_df at the same time. Please choose one or the other.")
 
     # Set defaults for configuration objects
     plot_config = plot_config or PlotConfig()
@@ -247,8 +256,17 @@ def plot_unfolding(
                 ys_fit = pychemelt_sample.predicted_deriv_lst_multiple[i]
                 ys = pychemelt_sample.deriv_lst_expanded[i * nr_den:(i + 1) * nr_den]
             else:
-                ys_fit = pychemelt_sample.predicted_lst_multiple[i]
-                ys = pychemelt_sample.signal_lst_expanded[i*nr_den:(i+1)*nr_den]
+                if use_scaled_data:
+                    print('here')
+                    ys_fit = pychemelt_sample.predicted_lst_multiple_scaled[i]
+                    ys = pychemelt_sample.signal_lst_multiple_scaled[i]
+
+                    if pychemelt_sample.max_points is not None:
+                        ys = [subset_data(x, pychemelt_sample.max_points) for x in ys]
+
+                else:
+                    ys_fit = pychemelt_sample.predicted_lst_multiple[i]
+                    ys = pychemelt_sample.signal_lst_expanded[i*nr_den:(i+1)*nr_den]
 
         else:
             # Full dataset if no fittings were done

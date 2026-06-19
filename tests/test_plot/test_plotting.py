@@ -49,13 +49,14 @@ def test_plot_unfolding():
     assert fig is not None
     assert isinstance(fig, go.Figure)
 
-def test_plot_unfolding_with_baseline_df():
+def test_plot_unfolding_with_baseline_df_and_scaled():
 
     sample = Sample()
 
     sample.read_multiple_files('./test_files/nDSFdemoFile.xlsx')
     sample.set_denaturant_concentrations()
     sample.set_signal(['350nm', '330nm'])
+    sample.max_points = 100
 
     sample.select_conditions([True for _ in range(8)] + [False for _ in range(48 - 8)])
 
@@ -71,6 +72,9 @@ def test_plot_unfolding_with_baseline_df():
     sample.set_signal_id()
     sample.fit_thermal_unfolding_local()
     sample.fit_thermal_unfolding_global()
+    sample.fit_thermal_unfolding_global_global()
+    sample.fit_thermal_unfolding_global_global_global()
+
     sample.predict_baselines()
 
     fig = plot_unfolding(sample, plot_baseline_df=True)
@@ -88,6 +92,15 @@ def test_plot_unfolding_with_baseline_df():
 
     assert len(baseline_traces) == 2 * sample.nr_signals
     assert all(trace.showlegend is False for trace in baseline_traces)
+
+    fig = plot_unfolding(sample, plot_baseline_df=False, use_scaled_data=True)
+
+    assert fig is not None
+    assert isinstance(fig, go.Figure)
+
+    # Raise value error if plot_baseline_df and use_scaled_data are both True
+    with pytest.raises(ValueError):
+        plot_unfolding(sample, plot_baseline_df=True, use_scaled_data=True)
 
 def test_plot_baselines():
     sample = Sample()
