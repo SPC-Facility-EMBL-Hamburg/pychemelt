@@ -1050,6 +1050,9 @@ def find_baseline_params(params_df,mode='native'):
     # For each signal, find the parameters corresponding to the lowest (for native) or highest (for unfolded) denaturant concentration
     # and store them in a dictionary
 
+    # Drop duplicates and keep the first occurence
+    params_df = params_df.drop_duplicates(subset=['Signal', 'Denaturant','Parameter'], keep='first')
+
     unq_signals = params_df['Signal'].unique()
 
     for signal in unq_signals:

@@ -1234,7 +1234,7 @@ class Monomer(Sample):
         native_id   = np.argmin(self.denaturant_concentrations)
         unfolded_id = np.argmax(self.denaturant_concentrations)
 
-        native_baseline_params_dict = find_baseline_params(self.params_df,mode='native')
+        native_baseline_params_dict   = find_baseline_params(self.params_df,mode='native')
         unfolded_baseline_params_dict = find_baseline_params(self.params_df,mode='unfolded')
 
         for i,signal in enumerate(self.signal_names):
@@ -1256,8 +1256,6 @@ class Monomer(Sample):
 
                 native_baseline   = self.baseline_N_fx(temp_native_K,0,0, *native_params) # 0 because the denaturant has no effect here
                 unfolded_baseline = self.baseline_U_fx(temp_unfolded_K,0,0, *unfolded_params) # 0 because the denaturant has no effect here
-
-                print(native_baseline)
 
             else:
 
