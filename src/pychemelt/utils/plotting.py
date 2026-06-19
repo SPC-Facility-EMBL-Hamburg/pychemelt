@@ -257,7 +257,6 @@ def plot_unfolding(
                 ys = pychemelt_sample.deriv_lst_expanded[i * nr_den:(i + 1) * nr_den]
             else:
                 if use_scaled_data:
-                    print('here')
                     ys_fit = pychemelt_sample.predicted_lst_multiple_scaled[i]
                     ys = pychemelt_sample.signal_lst_multiple_scaled[i]
 
