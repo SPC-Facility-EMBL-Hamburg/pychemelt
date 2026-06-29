@@ -2,7 +2,7 @@
 
 [![Tests](https://github.com/osvalB/pychemelt/actions/workflows/ci-cd.yml/badge.svg)](https://github.com/osvalB/pychemelt/actions/workflows/ci-cd.yml)
 [![codecov](https://codecov.io/gh/osvalB/pychemelt/graph/badge.svg)](https://codecov.io/gh/osvalB/pychemelt)
-[![Docs](https://img.shields.io/badge/docs-online-blue)](https://osvalb.github.io/pychemelt)
+[![Docs](https://github.com/osvalB/pychemelt/actions/workflows/build-docs.yml/badge.svg)](https://github.com/osvalB/pychemelt/actions/workflows/build-docs.yml)
 
 Welcome to PyCheMelt, a python-package to globally analyse protein denaturation data.
 
@@ -14,15 +14,16 @@ Welcome to PyCheMelt, a python-package to globally analyse protein denaturation 
 
 ## Install for Users
 
-You can install PyCheMelt using pip
-
-```bash
-pip install pychemelt
-```
- Or using [uv](https://docs.astral.sh/uv/)
+The recommended way to install PyCheMelt is with [uv](https://docs.astral.sh/uv/):
 
 ```bash
 uv add pychemelt
+```
+
+If you are not using `uv`, install PyCheMelt with pip:
+
+```bash
+pip install pychemelt
 ```
 
 ## Examples

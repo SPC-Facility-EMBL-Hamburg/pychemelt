@@ -4,7 +4,7 @@ Installation
 Requirements
 ------------
 
-PyPhotoMol requires Python 3.7 or later and the following packages:
+PyChemelt requires Python 3.12 or later and the following packages:
 
 * numpy
 * pandas
@@ -12,10 +12,25 @@ PyPhotoMol requires Python 3.7 or later and the following packages:
 * xlrd
 * openpyxl
 
+Install for Users
+-----------------
+
+The recommended way to install PyChemelt is with ``uv``:
+
+.. code-block:: bash
+
+    uv add pychemelt
+
+If you are not using ``uv``, install PyChemelt with ``pip``:
+
+.. code-block:: bash
+
+    pip install pychemelt
+
 
 Install from Source - Development
------------------------------
-Clone the repository and install in development mode (requires `uv`):
+---------------------------------
+Clone the repository and install in development mode with ``uv``:
 
 .. code-block:: bash
 

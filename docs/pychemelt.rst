@@ -24,3 +24,19 @@ pychemelt.main module
    :members:
    :show-inheritance:
    :undoc-members:
+
+pychemelt.monomer module
+------------------------
+
+.. automodule:: pychemelt.monomer
+   :members:
+   :show-inheritance:
+   :undoc-members:
+
+pychemelt.thermal\_oligomer module
+----------------------------------
+
+.. automodule:: pychemelt.thermal_oligomer
+   :members:
+   :show-inheritance:
+   :undoc-members:
