@@ -2,7 +2,7 @@
 
 [![Tests](https://github.com/osvalB/pychemelt/actions/workflows/ci-cd.yml/badge.svg)](https://github.com/osvalB/pychemelt/actions/workflows/ci-cd.yml)
 [![codecov](https://codecov.io/gh/osvalB/pychemelt/graph/badge.svg)](https://codecov.io/gh/osvalB/pychemelt)
-[![Docs](https://github.com/osvalB/pychemelt/actions/workflows/build-docs.yml/badge.svg)](https://github.com/osvalB/pychemelt/actions/workflows/build-docs.yml)
+[![Documentation](https://img.shields.io/badge/docs-online-blue)](https://osvalb.github.io/pychemelt/)
 
 Welcome to PyCheMelt, a python-package to globally analyse protein denaturation data.
 
@@ -50,4 +50,8 @@ uv run pytest -v
 ## Authors
 
 - Osvaldo Burastero
-- Florian Vögele 
+- Florian Vögele
+
+## License
+
+PyCheMelt is distributed under the MIT License. See [LICENSE](LICENSE).

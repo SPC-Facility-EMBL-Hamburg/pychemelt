@@ -3,6 +3,12 @@ name = "pychemelt"
 version = "1.0.0"
 description = "Add your description here"
 readme = "README.md"
+authors = [
+    { name = "Osvaldo Burastero" },
+    { name = "Florian Vögele" },
+]
+license = "MIT"
+license-files = ["LICENSE"]
 requires-python = ">=3.12"
 dependencies = [
     "lmfit>=1.3.4",
