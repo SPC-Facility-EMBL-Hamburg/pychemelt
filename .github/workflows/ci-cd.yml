@@ -8,12 +8,11 @@ on:
   release:
     types: [published]
 
-env:
-  UV_CACHE_DIR: ${{ runner.temp }}/uv-cache
-
 jobs:
   test:
     runs-on: ubuntu-latest
+    env:
+      UV_CACHE_DIR: ${{ runner.temp }}/uv-cache
     strategy:
       matrix:
         python-version: ["3.12", "3.13"]
@@ -54,6 +53,8 @@ jobs:
   build:
     runs-on: ubuntu-latest
     needs: test
+    env:
+      UV_CACHE_DIR: ${{ runner.temp }}/uv-cache
 
     steps:
     - uses: actions/checkout@v6
