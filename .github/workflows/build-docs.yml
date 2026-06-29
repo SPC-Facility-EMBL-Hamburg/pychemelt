@@ -32,11 +32,12 @@ permissions:
   pages: write
   id-token: write
 
+env:
+  UV_CACHE_DIR: /tmp/uv-cache
+
 jobs:
   build-docs:
     runs-on: ubuntu-latest
-    env:
-      UV_CACHE_DIR: ${{ runner.temp }}/uv-cache
 
     steps:
     - uses: actions/checkout@v6
