@@ -4,7 +4,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'src'))
 
-project = 'PyChemelt'
+project = 'PyCheMelt'
 copyright = '2026, Osvaldo Burastero and Florian Vögele'
 author = 'Osvaldo Burastero'
 release = '1.0.0'
@@ -15,6 +15,7 @@ extensions = [
     'sphinx.ext.napoleon',
     'sphinx.ext.autosummary',
     'numpydoc',
+    'nbsphinx',
     'sphinx_copybutton',
     'sphinx_design',
 ]
@@ -42,6 +43,9 @@ napoleon_google_docstring = True
 napoleon_numpy_docstring = True
 
 numpydoc_show_class_members = False
+nbsphinx_execute = 'never'
+nbsphinx_allow_errors = False
+nbsphinx_codecell_lexer = 'python'
 
 def setup(app):
     app.add_css_file('custom.css')

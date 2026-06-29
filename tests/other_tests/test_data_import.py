@@ -1,5 +1,8 @@
 import numpy as np
 import pytest
+from pathlib import Path
+
+from pychemelt import Monomer as Sample
 
 from pychemelt.utils.files import (
     get_sheet_names_of_xlsx,
@@ -90,6 +93,20 @@ def test_detect_file_type():
     assert detect_file_type(chirascan_file) == 'chirascan_thermal_ramp'
 
     assert detect_file_type(csv_file_3) == 'csv'
+
+def test_sample_read_file_accepts_path():
+
+    path = Path(nDSF_file)
+
+    sample = Sample()
+    assert sample.read_file(path)
+    assert len(sample.conditions) == 48
+    assert len(sample.labels) == 48
+
+    sample = Sample()
+    assert sample.read_multiple_files(path)
+    assert len(sample.conditions) == 48
+    assert len(sample.labels) == 48
 
 def test_error_on_unknown_file_type():
 
@@ -290,4 +307,3 @@ def test_chirascan_thermal_ramp():
     assert len(temp_data_dic['280.0 nm'][0]) == 17
 
     assert len(signals) == 86
-

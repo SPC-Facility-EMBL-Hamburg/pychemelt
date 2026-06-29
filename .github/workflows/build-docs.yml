@@ -33,7 +33,7 @@ permissions:
   id-token: write
 
 env:
-  UV_CACHE_DIR: ${{ github.workspace }}/.cache/uv
+  UV_CACHE_DIR: ${{ runner.temp }}/uv-cache
 
 jobs:
   build-docs:
@@ -58,6 +58,11 @@ jobs:
         restore-keys: |
           ${{ runner.os }}-uv-3.13-
           ${{ runner.os }}-uv-
+
+    - name: Install Pandoc
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y pandoc
 
     - name: Build documentation
       run: |

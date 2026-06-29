@@ -4,7 +4,7 @@ Installation
 Requirements
 ------------
 
-PyChemelt requires Python 3.12 or later and the following packages:
+PyCheMelt requires Python 3.12 or later and the following packages:
 
 * numpy
 * pandas
@@ -15,13 +15,13 @@ PyChemelt requires Python 3.12 or later and the following packages:
 Install for Users
 -----------------
 
-The recommended way to install PyChemelt is with ``uv``:
+The recommended way to install PyCheMelt is with ``uv``:
 
 .. code-block:: bash
 
     uv add pychemelt
 
-If you are not using ``uv``, install PyChemelt with ``pip``:
+If you are not using ``uv``, install PyCheMelt with ``pip``:
 
 .. code-block:: bash
 

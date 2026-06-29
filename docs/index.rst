@@ -12,6 +12,7 @@ at different protein concentrations.
    :caption: Contents:
 
    installation
+   examples
    modules
 
 Indices and tables

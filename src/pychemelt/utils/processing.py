@@ -3,6 +3,7 @@ This module contains helper functions to process data
 Author: Osvaldo Burastero
 """
 import re
+import os
 import numpy as np
 import pandas as pd
 import itertools
@@ -78,7 +79,7 @@ def transform_to_list(element_or_list):
     if element_or_list is None or isinstance(element_or_list, list) or isinstance(element_or_list, np.ndarray):
         return element_or_list
 
-    if isinstance(element_or_list, (bool,str,int,float)):
+    if isinstance(element_or_list, (bool,str,int,float,os.PathLike)):
         return [element_or_list]
 
     else:

@@ -5,6 +5,7 @@ The current model assumes that the unfolding is reversible
 
 import pandas as pd
 import numpy as np
+import os
 
 from .utils.files  import (
 
@@ -142,7 +143,7 @@ class Sample:
 
         Parameters
         ----------
-        file : str
+        file : str or os.PathLike
             Path to the file
 
         Returns
@@ -151,6 +152,7 @@ class Sample:
             True if the file was read and loaded into the sample object
         """
 
+        file = os.fspath(file)
         file_type = detect_file_type(file)
 
         read_fx_map = {
