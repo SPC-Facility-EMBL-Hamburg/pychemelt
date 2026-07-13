@@ -61,6 +61,7 @@ class Monomer(Sample):
         self.nr_den = 0  # Number of denaturant concentrations
         self.oligomeric = False # Flag for oligomer for plotting
         self.model_scale_factor = False # Flag for model scale factor for fitting
+        self.Tms = None 
 
     def set_denaturant_concentrations(self, concentrations=None):
 
@@ -352,6 +353,33 @@ class Monomer(Sample):
 
         return None
 
+    def get_current_thermodynamic_params_guess(self):
+
+        """
+        Get the current guess for the thermodynamic parameters (Tm, dH, Cp, m-value)
+        
+        Returns
+        -------
+        list
+            List of four values, the current guess for the thermodynamic parameters (Tm, dH, Cp, m-value)
+        """
+
+        # Raise an error if self.Tms is None or empty
+        if self.Tms is None or len(self.Tms) == 0:
+            raise ValueError('Tms is None or empty. Please run guess_Cp before calling this method.')
+
+        max_tm_id = np.argmax(self.Tms)
+
+        if self.thermodynamic_params_guess is None:
+
+            p0 = [self.Tms[max_tm_id], np.max([self.dHs[max_tm_id], 80]), self.Cp0, 2.8]
+
+        else:
+
+            p0 = self.thermodynamic_params_guess
+
+        return p0
+
     def fit_thermal_unfolding_global(
             self,
             fit_m_dep=False,
@@ -359,7 +387,8 @@ class Monomer(Sample):
             dh_limits=None,
             tm_limits=None,
             cp_value=None,
-            predict_baselines=True):
+            predict_baselines=True,
+            user_thermodynamic_params_guess=None):
 
         """
         Fit the thermal unfolding of the sample using the signal and temperature data
@@ -378,6 +407,10 @@ class Monomer(Sample):
             List of two values, the lower and upper bounds for the Tm value. If None, bounds set automatically
         cp_value : float, optional
             If provided, the Cp value is fixed to this value, the bounds are ignored
+        predict_baselines : bool, optional
+            If True, predict the baselines after fitting and store them in the object. Default is True.
+        thermodynamic_params_guess : list, optional
+            List of four values, the initial guess for the thermodynamic parameters (Tm, dH, Cp, m-value). If None, initial guess set automatically
         Notes
         -----
         This is a heavy routine that creates/updates many fitting-related attributes, including:
@@ -394,15 +427,13 @@ class Monomer(Sample):
         if self.Cp0 <= 0:
             raise ValueError('Cp0 must be positive. Please run guess_Cp before fitting globally.')
 
-        max_tm_id = np.argmax(self.Tms)
+        if user_thermodynamic_params_guess is not None:
 
-        if self.thermodynamic_params_guess is None:
-
-            p0 = [self.Tms[max_tm_id], np.max([self.dHs[max_tm_id], 80]), self.Cp0, 2.8]
-
+            p0 = user_thermodynamic_params_guess
+        
         else:
 
-            p0 = self.thermodynamic_params_guess
+            p0 = self.get_current_thermodynamic_params_guess()
 
         params_names = [
             'Tm (°C)',

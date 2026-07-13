@@ -166,6 +166,13 @@ sample.estimate_derivative()
 sample.guess_Tm()
 sample.n_residues = 130
 
+def test_get_current_thermodynamic_params_guess_error():
+
+    # Test raise value error when self.Tms is not available
+    with pytest.raises(ValueError):
+        sample.get_current_thermodynamic_params_guess()
+
+
 def test_fit_thermal_unfolding_local():
 
     sample.estimate_baseline_parameters(
@@ -184,6 +191,12 @@ def test_guess_Cp():
 
     np.testing.assert_allclose(sample.Cp0,1.6,rtol=0.1)
 
+def test_get_current_thermodynamic_params_guess():
+
+    p0 = sample.get_current_thermodynamic_params_guess()
+    assert len(p0) == 4
+    assert np.allclose(p0, [60, 100, 1.6, 2.6], rtol=0.1)
+
 def test_guess_initial_parameters():
 
     sample.guess_initial_parameters(
@@ -197,7 +210,9 @@ def test_guess_initial_parameters():
 
 def test_fit_thermal_unfolding_global():
 
-    sample.fit_thermal_unfolding_global()
+    p0 = sample.get_current_thermodynamic_params_guess()
+
+    sample.fit_thermal_unfolding_global(user_thermodynamic_params_guess=p0)
 
     assert sample.params_df is not None
 
