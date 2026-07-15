@@ -10,7 +10,7 @@ from pychemelt.utils.signals import signal_two_state_tc_unfolding
 from pychemelt.utils.math import quadratic_baseline
 import pytest
 
-KCAL_TO_KJ_CST = 4.18
+from pychemelt.utils.constants import KCAL_TO_KJ_CST
 
 def_params = { 
     'DHm': 100,
@@ -72,7 +72,6 @@ def aux_create_pychem_sim(params,concs,signal_error=0.0005):
     pychem_sim.set_denaturant_concentrations()
 
     pychem_sim.set_signal('Fluo')
-
     pychem_sim.select_conditions(normalise_to_global_max=False)
     pychem_sim.expand_multiple_signal()
 

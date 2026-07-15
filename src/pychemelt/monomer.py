@@ -6,6 +6,7 @@ The current model assumes the protein is a monomer and that the unfolding is rev
 import pandas as pd
 import numpy as np
 
+
 from itertools import chain
 from copy import deepcopy
 from lmfit import fit_report
@@ -13,6 +14,8 @@ from lmfit import fit_report
 from .main import Sample
 
 from .utils.signals import signal_two_state_tc_unfolding
+
+from .utils.constants import KCAL_TO_KJ_CST
 
 from .utils.math import (
     temperature_to_celsius,
@@ -71,7 +74,7 @@ class Monomer(Sample):
     def set_units(self,format='international'):
 
         self.temp_units_str = "°C" if format != "international" else "°K"
-        self.conv_factor    = 1 if format != "international" else 4.18
+        self.conv_factor    = 1 if format != "international" else KCAL_TO_KJ_CST
         self.energy_units_str = "kcal" if format != "international" else "kJ"
         self.center_temp_fx = temperature_to_celsius if format != "international" else temperature_to_kelvin
 
