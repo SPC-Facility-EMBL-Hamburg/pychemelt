@@ -864,7 +864,7 @@ def is_float(element):
         return False
     
 
-def ci_dict_to_summary_df(ci_dict,percentage=0.95):
+def ci_dict_to_summary_df(ci_dict,percentage=0.95,units_format='kcal'):
 
     """
     Convert lmfit confidence interval dictionary into a summary DataFrame.
@@ -901,9 +901,9 @@ def ci_dict_to_summary_df(ci_dict,percentage=0.95):
 
     # Replace Cp0 for ΔCp
     if 'Cp0' in ci_dict:
-        ci_dict['ΔCp (kcal / mol K)'] = []
+        ci_dict['ΔCp (kcal / mol / °C)'] = []
         for sigma_val, value in ci_dict.pop('Cp0'):
-            ci_dict['ΔCp (kcal / mol K)'].append((sigma_val, value))
+            ci_dict['ΔCp (kcal / mol / °C)'].append((sigma_val, value))
 
     # Replace m0 for m-value
     if 'm0' in ci_dict:

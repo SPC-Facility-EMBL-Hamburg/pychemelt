@@ -220,7 +220,7 @@ def plot_unfolding(
         plot_baseline_df
         and not plot_derivative
         and baseline_df is not None
-        and {"Temperature (°C)", "Baseline", "State", "Signal"}.issubset(set(baseline_df.columns))
+        and {"Temperature ({})".format(pychemelt_sample.temp_units_str), "Baseline", "State", "Signal"}.issubset(set(baseline_df.columns))
     )
 
     row_arr = np.arange(1, nrows + 1)
@@ -317,7 +317,7 @@ def plot_unfolding(
 
                 fig.add_trace(
                     go.Scatter(
-                        x=state_df['Temperature (°C)'].to_numpy(),
+                        x=state_df['Temperature ({})'.format(pychemelt_sample.temp_units_str)].to_numpy(),
                         y=state_df['Baseline'].to_numpy(),
                         mode='lines',
                         line=dict(color='red', width=plot_config.line_width, dash='dash'),
@@ -345,7 +345,7 @@ def plot_unfolding(
         col = row_col_info[i][1]
 
         # Set the x-axis title only for the last row
-        title_text_x = 'Temperature (°C)' if row == nrows else ''
+        title_text_x = 'Temperature ({})'.format(pychemelt_sample.temp_units_str) if row == nrows else ''
 
         # Set the y-axis title only for the first column
         if plot_derivative:
@@ -671,7 +671,7 @@ def plot_residuals(
         col = row_col_info[i][1]
 
         # Set the x-axis title only for the last row
-        title_text_x = 'Temperature (°C)' if row == nrows else ''
+        title_text_x = 'Temperature ({})'.format(pychemelt_sample.temp_units_str) if row == nrows else ''
 
         # Set the y-axis title only for the first column
         title_text_y = 'Residuals' if col == 1 else ''
@@ -842,8 +842,6 @@ def plot_baselines(
 
     for i in range(nrows):
 
-
-
         row = subplot_idx
 
         # Full dataset if no fittings were done
@@ -1006,7 +1004,7 @@ def plot_baselines(
         row = subplot_idx
 
         # Set the x-axis title only for the last row
-        title_text_x = 'Temperature (°C)' if row == nrows else ''
+        title_text_x = 'Temperature ({})'.format(pychemelt_sample.temp_units_str) if row == nrows else ''
 
         for col in range(1, 3):
             # Set the y-axis title only for the first column

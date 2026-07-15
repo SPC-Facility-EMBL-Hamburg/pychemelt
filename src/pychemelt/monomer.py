@@ -62,6 +62,20 @@ class Monomer(Sample):
         self.oligomeric = False # Flag for oligomer for plotting
         self.model_scale_factor = False # Flag for model scale factor for fitting
         self.Tms = None 
+        self.p0_thermodynamics = None
+    
+        # Set default units
+        self.conv_factor = 1
+        self.energy_units_str = "kcal"
+
+    def set_units(self,format='international'):
+
+        self.temp_units_str = "°C" if format != "international" else "°K"
+        self.conv_factor    = 1 if format != "international" else 4.18
+        self.energy_units_str = "kcal" if format != "international" else "kJ"
+        self.center_temp_fx = temperature_to_celsius if format != "international" else temperature_to_kelvin
+
+        return None
 
     def set_denaturant_concentrations(self, concentrations=None):
 
@@ -151,8 +165,11 @@ class Monomer(Sample):
 
         self.denaturant_concentrations = np.array(self.denaturant_concentrations)
 
-        return None
+        for i in range(self.nr_signals):
 
+            self.temp_lst_multiple[i] = [self.center_temp_fx(x) for x in self.temp_lst_multiple[i]]
+
+        return None
 
     def fit_thermal_unfolding_local(self):
 
@@ -344,61 +361,30 @@ class Monomer(Sample):
 
         DG = DHm * (1 - T / Tm) + Cp0 * (T - Tm - T * np.log(T / Tm))
 
+        DG = DG * self.conv_factor
+
         dg_df = pd.DataFrame({
-            'DG (kcal/mol)': DG,
-            'Temperature (°C)': T_c
+            "DG ({}/mol)".format(self.energy_units_str): DG,
+            "Temperature (°{})".format(self.temp_units_str): self.center_temp_fx(T_c)
         })
 
         self.dg_df = dg_df
 
         return None
 
-    def get_current_thermodynamic_params_guess(self):
-
-        """
-        Get the current guess for the thermodynamic parameters (Tm, dH, Cp, m-value)
-        
-        Returns
-        -------
-        list
-            List of four values, the current guess for the thermodynamic parameters (Tm, dH, Cp, m-value)
-        """
-
-        # Raise an error if self.Tms is None or empty
-        if self.Tms is None or len(self.Tms) == 0:
-            raise ValueError('Tms is None or empty. Please run guess_Cp before calling this method.')
-
-        max_tm_id = np.argmax(self.Tms)
-
-        if self.thermodynamic_params_guess is None:
-
-            p0 = [self.Tms[max_tm_id], np.max([self.dHs[max_tm_id], 80]), self.Cp0, 2.8]
-
-        else:
-
-            p0 = self.thermodynamic_params_guess
-
-        return p0
-
-    def fit_thermal_unfolding_global(
+    def set_thermodynamic_params_guess(
             self,
-            fit_m_dep=False,
             cp_limits=None,
             dh_limits=None,
             tm_limits=None,
             cp_value=None,
-            predict_baselines=True,
             user_thermodynamic_params_guess=None):
 
         """
-        Fit the thermal unfolding of the sample using the signal and temperature data
-        We fit all the curves at once, with global thermodynamic parameters but local slopes and local baselines)
-        Multiple signals can be fitted at the same time, such as 350nm and 330nm
-
+        Get the current guess for the thermodynamic parameters (Tm, dH, Cp, m-value)
+        
         Parameters
         ----------
-        fit_m_dep : bool, optional
-            If True, fit the temperature dependence of the m-value
         cp_limits : list, optional
             List of two values, the lower and upper bounds for the Cp value. If None, bounds set automatically
         dh_limits : list, optional
@@ -407,25 +393,24 @@ class Monomer(Sample):
             List of two values, the lower and upper bounds for the Tm value. If None, bounds set automatically
         cp_value : float, optional
             If provided, the Cp value is fixed to this value, the bounds are ignored
-        predict_baselines : bool, optional
-            If True, predict the baselines after fitting and store them in the object. Default is True.
-        thermodynamic_params_guess : list, optional
-            List of four values, the initial guess for the thermodynamic parameters (Tm, dH, Cp, m-value). If None, initial guess set automatically
-        Notes
-        -----
-        This is a heavy routine that creates/updates many fitting-related attributes, including:
-        - bNs_expanded, bUs_expanded, kNs_expanded, kUs_expanded, qNs_expanded, qUs_expanded
-        - p0, low_bounds, high_bounds, global_fit_params, rel_errors
-        - predicted_lst_multiple, params_names, params_df, dg_df
-        - flags: global_fit_done, fit_m_dep, limited_tm, limited_dh, limited_cp, fixed_cp
+
+        Returns
+        -------
+        list
+            List of four values, the current guess for the thermodynamic parameters (Tm, dH, Cp, m-value)
         """
 
-        self.global_global_global_fit_done = False  # Reset the flag for the more complex global fit
-        self.global_global_fit_done = False  # Reset the flag for the global fit with shared slopes
+        params_names = [
+            'Tm ({})'.format(self.temp_units_str),
+            'ΔHm ({}/mol)'.format(self.energy_units_str),
+            'ΔCp ({}/mol/{})'.format(self.energy_units_str,self.temp_units_str),
+            'm-value ({}/mol/M)'.format(self.energy_units_str)]
 
-        # Requires Cp0
-        if self.Cp0 <= 0:
-            raise ValueError('Cp0 must be positive. Please run guess_Cp before fitting globally.')
+        # Raise an error if self.Tms is None or empty
+        if self.Tms is None or len(self.Tms) == 0:
+            raise ValueError('Tms is None or empty. Please run guess_Cp before calling this method.')
+
+        max_tm_id = np.argmax(self.Tms)
 
         if user_thermodynamic_params_guess is not None:
 
@@ -433,80 +418,16 @@ class Monomer(Sample):
         
         else:
 
-            p0 = self.get_current_thermodynamic_params_guess()
+            if self.thermodynamic_params_guess is None:
 
-        params_names = [
-            'Tm (°C)',
-            'ΔHm (kcal/mol)',
-            'Cp (kcal/mol/°C)',
-            'm-value (kcal/mol/M)']
+                p0 = [self.Tms[max_tm_id], np.max([self.dHs[max_tm_id], 80]), self.Cp0, 2.8]
 
-        self.first_param_Ns_expanded = np.concatenate(self.first_param_Ns_per_signal, axis=0)
-        self.first_param_Us_expanded = np.concatenate(self.first_param_Us_per_signal, axis=0)
-        self.second_param_Ns_expanded = np.concatenate(self.second_param_Ns_per_signal, axis=0)
-        self.second_param_Us_expanded = np.concatenate(self.second_param_Us_per_signal, axis=0)
-        self.third_param_Ns_expanded = np.concatenate(self.third_param_Ns_per_signal, axis=0)
-        self.third_param_Us_expanded = np.concatenate(self.third_param_Us_per_signal, axis=0)
+            else:
 
-        p0 = np.concatenate([p0, self.first_param_Ns_expanded, self.first_param_Us_expanded])
+                p0 = self.thermodynamic_params_guess
 
-        # We need to append as many bN and bU as the number of denaturant concentrations
-        # times the number of signal types
-        for signal in self.signal_names:
-
-            params_names += (['intercept_native - ' + str(self.denaturant_concentrations[i]) +
-                              ' - ' + str(signal) for i in range(self.nr_den)])
-
-        for signal in self.signal_names:
-
-            params_names += (['intercept_unfolded - ' + str(self.denaturant_concentrations[i]) +
-                              ' - ' + str(signal) for i in range(self.nr_den)])
-
-        if self.native_baseline_type in ['linear', 'quadratic','exponential']:
-
-            param_name = 'pre_exponential_factor_native' if self.native_baseline_type == 'exponential' else 'slope_term_native'
-
-            p0 = np.concatenate([p0, self.second_param_Ns_expanded])
-
-            for signal in self.signal_names:
-                params_names += ([param_name + ' - ' + str(self.denaturant_concentrations[i]) +
-                                  ' - ' + str(signal) for i in range(self.nr_den)])
-
-        if self.unfolded_baseline_type in ['linear', 'quadratic','exponential']:
-
-            param_name = 'pre_exponential_factor_unfolded' if self.unfolded_baseline_type == 'exponential' else 'slope_term_unfolded'
-
-            p0 = np.concatenate([p0, self.second_param_Us_expanded])
-
-            for signal in self.signal_names:
-                params_names += ([param_name + ' - ' + str(self.denaturant_concentrations[i]) +
-                                  ' - ' + str(signal) for i in range(self.nr_den)])
-
-        if self.native_baseline_type in ['quadratic', 'exponential']:
-
-            param_name = 'exponential_coefficient_native' if self.native_baseline_type == 'exponential' else 'quadratic_term_native'
-
-            p0 = np.concatenate([p0, self.third_param_Ns_expanded])
-            for signal in self.signal_names:
-
-                params_names += ([param_name + ' - ' + str(self.denaturant_concentrations[i]) +
-                                  ' - ' + str(signal) for i in range(self.nr_den)])
-
-        if self.unfolded_baseline_type in ['quadratic', 'exponential']:
-
-            param_name = 'exponential_coefficient_unfolded' if self.unfolded_baseline_type == 'exponential' else 'quadratic_term_unfolded'
-
-            p0 = np.concatenate([p0, self.third_param_Us_expanded])
-
-            for signal in self.signal_names:
-
-                params_names += ([param_name + ' - ' + str(self.denaturant_concentrations[i]) +
-                                  ' - ' + str(signal) for i in range(self.nr_den)])
-
-        low_bounds = (p0.copy())
-        high_bounds = (p0.copy())
-
-        low_bounds[4:], high_bounds[4:] = set_param_bounds(p0[4:],params_names[4:])
+        low_bounds = p0.copy()
+        high_bounds = p0.copy()
 
         self.limited_tm = tm_limits is not None
 
@@ -519,7 +440,7 @@ class Monomer(Sample):
             tm_lower = p0[0] - 12
             tm_upper = np.max([self.user_max_temp + 20, p0[0] + 10])
 
-        low_bounds[0] = tm_lower
+        low_bounds[0]  = tm_lower
         high_bounds[0] = tm_upper
 
         # Verify that the initial guess is within the user-defined limits
@@ -583,6 +504,173 @@ class Monomer(Sample):
         low_bounds[id_m] = 0.5
         high_bounds[id_m] = 9
 
+        self.p0_thermodynamics = p0
+        self.low_bounds_thermodynamics = low_bounds
+        self.high_bounds_thermodynamics = high_bounds
+        self.par_names_thermodynamics = params_names
+
+        return None
+    
+
+    def create_params_with_units(self):
+
+        # Create attributes copies with the req. units
+        # This is done so the parameters are shown in kjoul or kcal
+        self.fit_params_with_units = (self.global_fit_params).copy()
+        self.low_bounds_with_units = (self.low_bounds).copy()
+        self.high_bounds_with_units = (self.high_bounds).copy()
+
+        self.fit_params_with_units[0] = self.center_temp_fx(self.fit_params_with_units[0])
+        self.low_bounds_with_units[0] = self.center_temp_fx(self.low_bounds_with_units[0])
+        self.high_bounds_with_units[0] = self.center_temp_fx(self.high_bounds_with_units[0])
+
+        ids_to_multiply = [1,2,3] if self.cp_value is None else [1,2]
+
+        for i in ids_to_multiply:
+
+            self.fit_params_with_units[i] *= self.conv_factor
+            self.low_bounds_with_units[i] *= self.conv_factor
+            self.high_bounds_with_units[i] *= self.conv_factor
+
+        return None
+
+    def fit_thermal_unfolding_global(
+            self,
+            fit_m_dep=False,
+            cp_limits=None,
+            dh_limits=None,
+            tm_limits=None,
+            cp_value=None,
+            predict_baselines=True,
+            set_init_params=True
+            ):
+
+        """
+        Fit the thermal unfolding of the sample using the signal and temperature data
+        We fit all the curves at once, with global thermodynamic parameters but local slopes and local baselines)
+        Multiple signals can be fitted at the same time, such as 350nm and 330nm
+
+        Parameters
+        ----------
+        fit_m_dep : bool, optional
+            If True, fit the temperature dependence of the m-value
+        cp_limits : list, optional
+            List of two values, the lower and upper bounds for the Cp value. If None, bounds set automatically
+        dh_limits : list, optional
+            List of two values, the lower and upper bounds for the dH value. If None, bounds set automatically
+        tm_limits : list, optional
+            List of two values, the lower and upper bounds for the Tm value. If None, bounds set automatically
+        cp_value : float, optional
+            If provided, the Cp value is fixed to this value, the bounds are ignored
+        predict_baselines : bool, optional
+            If True, predict the baselines after fitting and store them in the object. Default is True.
+        set_init_params : bool, optional
+            If True, an initial guess for the thermodynamic parameters will be calculated
+            If False, self.p0_thermodynamics should be set before calling this method. 
+        Notes
+        -----
+        This is a heavy routine that creates/updates many fitting-related attributes, including:
+        - bNs_expanded, bUs_expanded, kNs_expanded, kUs_expanded, qNs_expanded, qUs_expanded
+        - p0, low_bounds, high_bounds, global_fit_params, rel_errors
+        - predicted_lst_multiple, params_names, params_df, dg_df
+        - flags: global_fit_done, fit_m_dep, limited_tm, limited_dh, limited_cp, fixed_cp
+        """
+
+        self.global_global_global_fit_done = False  # Reset the flag for the more complex global fit
+        self.global_global_fit_done = False  # Reset the flag for the global fit with shared slopes
+
+        # Requires Cp0
+        if self.Cp0 <= 0:
+            raise ValueError('Cp0 must be positive. Please run guess_Cp before fitting globally.')
+
+        if set_init_params:
+
+            self.set_thermodynamic_params_guess(
+                cp_limits=cp_limits,
+                dh_limits=dh_limits,
+                cp_value=cp_value,
+                tm_limits=tm_limits
+            )
+
+        p0 = self.p0_thermodynamics.copy()
+        low_bounds = self.low_bounds_thermodynamics.copy()
+        high_bounds = self.high_bounds_thermodynamics.copy()
+        params_names = self.par_names_thermodynamics.copy()
+
+        self.first_param_Ns_expanded = np.concatenate(self.first_param_Ns_per_signal, axis=0)
+        self.first_param_Us_expanded = np.concatenate(self.first_param_Us_per_signal, axis=0)
+        self.second_param_Ns_expanded = np.concatenate(self.second_param_Ns_per_signal, axis=0)
+        self.second_param_Us_expanded = np.concatenate(self.second_param_Us_per_signal, axis=0)
+        self.third_param_Ns_expanded = np.concatenate(self.third_param_Ns_per_signal, axis=0)
+        self.third_param_Us_expanded = np.concatenate(self.third_param_Us_per_signal, axis=0)
+
+        p0 = np.concatenate([p0, self.first_param_Ns_expanded, self.first_param_Us_expanded])
+        
+        # We need to append as many bN and bU as the number of denaturant concentrations
+        # times the number of signal types
+        for signal in self.signal_names:
+
+            params_names += (['intercept_native - ' + str(self.denaturant_concentrations[i]) +
+                              ' - ' + str(signal) for i in range(self.nr_den)])
+
+        for signal in self.signal_names:
+
+            params_names += (['intercept_unfolded - ' + str(self.denaturant_concentrations[i]) +
+                              ' - ' + str(signal) for i in range(self.nr_den)])
+
+        if self.native_baseline_type in ['linear', 'quadratic','exponential']:
+
+            param_name = 'pre_exponential_factor_native' if self.native_baseline_type == 'exponential' else 'slope_term_native'
+
+            p0 = np.concatenate([p0, self.second_param_Ns_expanded])
+
+            for signal in self.signal_names:
+                params_names += ([param_name + ' - ' + str(self.denaturant_concentrations[i]) +
+                                  ' - ' + str(signal) for i in range(self.nr_den)])
+
+        if self.unfolded_baseline_type in ['linear', 'quadratic','exponential']:
+
+            param_name = 'pre_exponential_factor_unfolded' if self.unfolded_baseline_type == 'exponential' else 'slope_term_unfolded'
+
+            p0 = np.concatenate([p0, self.second_param_Us_expanded])
+
+            for signal in self.signal_names:
+                params_names += ([param_name + ' - ' + str(self.denaturant_concentrations[i]) +
+                                  ' - ' + str(signal) for i in range(self.nr_den)])
+
+        if self.native_baseline_type in ['quadratic', 'exponential']:
+
+            param_name = 'exponential_coefficient_native' if self.native_baseline_type == 'exponential' else 'quadratic_term_native'
+
+            p0 = np.concatenate([p0, self.third_param_Ns_expanded])
+            for signal in self.signal_names:
+
+                params_names += ([param_name + ' - ' + str(self.denaturant_concentrations[i]) +
+                                  ' - ' + str(signal) for i in range(self.nr_den)])
+
+        if self.unfolded_baseline_type in ['quadratic', 'exponential']:
+
+            param_name = 'exponential_coefficient_unfolded' if self.unfolded_baseline_type == 'exponential' else 'quadratic_term_unfolded'
+
+            p0 = np.concatenate([p0, self.third_param_Us_expanded])
+
+            for signal in self.signal_names:
+
+                params_names += ([param_name + ' - ' + str(self.denaturant_concentrations[i]) +
+                                  ' - ' + str(signal) for i in range(self.nr_den)])
+
+        id_baseline_start = 3 + (not self.fixed_cp)
+
+        low_bounds_baseline =  p0[id_baseline_start:].copy()
+        high_bounds_baseline = p0[id_baseline_start:].copy()
+
+        low_bounds_baseline, high_bounds_baseline = set_param_bounds(
+            p0[id_baseline_start:],
+            params_names[id_baseline_start:])
+
+        low_bounds = np.concatenate([low_bounds,low_bounds_baseline])
+        high_bounds = np.concatenate([high_bounds,high_bounds_baseline])
+
         # Populate the expanded signal and temperature lists
         self.expand_multiple_signal()
 
@@ -618,6 +706,8 @@ class Monomer(Sample):
 
         # Insert the initial estimate for the m-value dependence of temperature, in the position 4
         if fit_m_dep:
+            
+            id_m = 2 + (not self.fixed_cp)
 
             kwargs['fit_m1'] = fit_m_dep
 
@@ -671,7 +761,8 @@ class Monomer(Sample):
 
         self.params_names = params_names
 
-        self.create_params_df()
+        self.create_params_with_units()
+        self.create_params_df(use_params_with_units=True)
         self.create_dg_df()
 
         # Add the kwargs and fit_fx to the object for potential later use in leave-one-out analysis
@@ -889,7 +980,8 @@ class Monomer(Sample):
         self.result = result
         self.minimizer = minimizer
 
-        self.create_params_df()
+        self.create_params_with_units()
+        self.create_params_df(use_params_with_units=True)
         self.create_dg_df()
 
         self.global_global_fit_done = True
@@ -1222,7 +1314,8 @@ class Monomer(Sample):
         self.result = result
         self.minimizer = minimizer
 
-        self.create_params_df()
+        self.create_params_with_units()
+        self.create_params_df(use_params_with_units=True)
         self.create_dg_df()
 
         self.global_global_global_fit_done = True
@@ -1296,8 +1389,11 @@ class Monomer(Sample):
                 native_baseline = self.baseline_N_fx(temp_native_K,lowest_den_conc,*native_params) # 0 because the denaturant has no effect here
                 unfolded_baseline = self.baseline_U_fx(temp_unfolded_K,highest_den_conc,*unfolded_params) # 0 because the denaturant has no effect here
 
+            temp_native = self.center_temp_fx(temp_native)
+            temp_unfolded = self.center_temp_fx(temp_unfolded)
+
             baseline_df = pd.DataFrame({
-                'Temperature (°C)': np.concatenate([temp_native, temp_unfolded]),
+                'Temperature ({})'.format(self.temp_units_str): np.concatenate([temp_native, temp_unfolded]),
                 'Baseline': np.concatenate([native_baseline, unfolded_baseline]),
                 'State': ['Native'] * len(temp_native) + ['Unfolded'] * len(temp_unfolded),
                 'Signal': signal
@@ -1445,12 +1541,18 @@ class Monomer(Sample):
 
         # Create a DataFrame to store the results, with the mean and standard deviation of the parameters across the leave-one-out fits
 
-        params = ['Tm (°C)','ΔHm (kcal / mol)']
+        params = ['Tm ({})'.format(self.temp_units_str),
+                  'ΔHm ({} / mol)'.format(self.energy_units_str)]
         
+        Tms = [self.center_temp_fx(x) for x in Tms]
+        DHs = [x * self.conv_factor for x in DHs]
+
         if self.cp_value is None:
-            params.append('ΔCp (kcal / mol / K)')
-        
-        params.append('m-value (kcal / mol / M)')
+            params.append('ΔCp ({} / mol / {})'.format(self.energy_units_str,self.temp_units_str))
+            Cps = [x * self.conv_factor for x in Cps]
+
+        params.append('m-value ({} / mol / M)'.format(self.energy_units_str))
+        m0s = [x * self.conv_factor for x in m0s]
 
         if n_fits == 0:
             self.loo_df = pd.DataFrame({
@@ -1524,7 +1626,27 @@ class Monomer(Sample):
             # https://lmfit.github.io/lmfit-py/confidence.html
         )
 
-        self.ci_df = ci_dict_to_summary_df(ci_results,percentage=percentage)
+        ci_df = ci_dict_to_summary_df(ci_results,percentage=percentage)
+
+        # Convert to appropiate units, if required.
+        if self.energy_units_str != 'kcal':
+
+            for i in range(len(ci_df)):
+
+                ci_df.iloc[i,0].replace("°C","°C")
+                ci_df.iloc[i,0].replace("kcal","kJ")
+            
+        ci_df.iloc[0,1] = self.center_temp_fx(ci_df.iloc[0,1]) 
+        ci_df.iloc[0,2] = self.center_temp_fx(ci_df.iloc[0,2]) 
+        ci_df.iloc[0,3] = self.center_temp_fx(ci_df.iloc[0,3]) 
+
+        for i in range(len(ci_df)-1):
+
+            ci_df.iloc[i+1,1] = ci_df.iloc[i+1,1] * self.conv_factor
+            ci_df.iloc[i+1,2] = ci_df.iloc[i+1,2] * self.conv_factor
+            ci_df.iloc[i+1,3] = ci_df.iloc[i+1,3] * self.conv_factor
+
+        self.ci_df = ci_df
 
         return None
 
@@ -1787,7 +1909,7 @@ class Monomer(Sample):
         self.fit_objects = results_df.pop('Fit Object').tolist()
 
         # Round Tm, ΔH, ΔCp, m-value, and Reduced χ² for better readability
-        results_df['Tm'] = temperature_to_celsius(results_df['Tm']).round(1)
+        results_df['Tm'] = self.center_temp_fx(results_df['Tm']).round(1)
         results_df['ΔHm'] = results_df['ΔHm'].round(1)
         results_df['ΔCp'] = results_df['ΔCp'].round(2)
         results_df['m-value'] = results_df['m-value'].round(2)
