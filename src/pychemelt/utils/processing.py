@@ -12,8 +12,9 @@ from collections import Counter
 
 from .math import (
     shift_temperature, 
-    relative_errors, 
-    temperature_to_celsius
+    relative_errors,
+    temperature_to_celsius,
+    temperature_to_kelvin
 )
 
 from .fitting import (
@@ -30,6 +31,8 @@ from .signals import (
 )
 
 from .palette import VIRIDIS
+
+from .constants import R_gas
 
 __all__ = [
     'set_param_bounds',
@@ -549,7 +552,8 @@ def fit_local_thermal_unfolding_to_signal_lst(
     p3_Ns,
     p3_Us,
     baseline_native_fx,
-    baseline_unfolded_fx):
+    baseline_unfolded_fx,
+    gas_cst=R_gas):
     """
     Perform individual (local) fits for each signal curve in a list.
 
@@ -567,6 +571,8 @@ def fit_local_thermal_unfolding_to_signal_lst(
         Function to calculate the native baseline.
     baseline_unfolded_fx : callable
         Function to calculate the unfolded baseline.
+    gas_cst : float, optional
+        Gas constant to use in calculations (default is R_gas).
 
     Returns
     -------
@@ -609,11 +615,11 @@ def fit_local_thermal_unfolding_to_signal_lst(
         low_bounds[0]  = np.min(t)
         high_bounds[0] = np.max(t) + 15
 
-        low_bounds[1]  = 10
-        high_bounds[1] = 500
+        low_bounds[1]  = gas_cst * 10 / R_gas
+        high_bounds[1] = gas_cst * 500 / R_gas
 
         try:
-
+            
             params, cov, predicted = fit_thermal_unfolding(
                 list_of_temperatures=[t],
                 list_of_signals=[s],
@@ -623,7 +629,8 @@ def fit_local_thermal_unfolding_to_signal_lst(
                 signal_fx=signal_two_state_t_unfolding,
                 baseline_native_fx=baseline_native_fx,
                 baseline_unfolded_fx=baseline_unfolded_fx,
-                Cp=0)
+                Cp=0,
+                gas_cst=gas_cst)
 
             rel_errors = relative_errors(params, cov)
 
@@ -864,7 +871,7 @@ def is_float(element):
         return False
     
 
-def ci_dict_to_summary_df(ci_dict,percentage=0.95,units_format='kcal'):
+def ci_dict_to_summary_df(ci_dict,percentage=0.95,energy_units_str='kcal',n_digits=3):
 
     """
     Convert lmfit confidence interval dictionary into a summary DataFrame.
@@ -873,6 +880,10 @@ def ci_dict_to_summary_df(ci_dict,percentage=0.95,units_format='kcal'):
     ----------
     ci_dict : dict
         Dictionary containing confidence intervals for fitted parameters, typically in the format returned by lmfit.
+    percentage : float, optional
+        Confidence level for the intervals (default is 0.95 for 95% confidence intervals).
+    energy_units_str : str, optional
+        Units format for the parameters, either 'kcal' or 'kJ' (default is 'kcal').
 
     Returns
     -------
@@ -884,40 +895,48 @@ def ci_dict_to_summary_df(ci_dict,percentage=0.95,units_format='kcal'):
          - Upper_CI: Upper bound of the confidence interval
     """
 
+    tm_str = 'Tm (°C)' if energy_units_str == 'kcal' else 'Tm (°K)'
+    dh_str = 'ΔHm (kcal / mol)' if energy_units_str == 'kcal' else 'ΔHm (kJ / mol)'
+    cp_str = 'ΔCp (kcal / mol / °C)' if energy_units_str == 'kcal' else 'ΔCp (kJ / mol / °K)'
+    m_str = 'm-value (kcal / mol / M)' if energy_units_str == 'kcal' else 'm-value (kJ / mol / M)'
+
     # If Tm is among the parameters, convert confidence intervals back to Celsius
     # and change the parameter name in the results for clarity
     if 'Tm' in ci_dict:
 
-        ci_dict['Tm (°C)'] = []
+        ci_dict[tm_str] = []
         for sigma_val, value in ci_dict.pop('Tm'):
-            value_celsius = temperature_to_celsius(value)
-            ci_dict['Tm (°C)'].append((sigma_val, value_celsius))
+            if energy_units_str == 'kcal':
+                value = temperature_to_celsius(value)
+            else:
+                value = temperature_to_kelvin(value)
+            ci_dict[tm_str].append((sigma_val, value))
 
     # Replace DHm for ΔHm
     if 'DHm' in ci_dict:
-        ci_dict['ΔHm (kcal / mol)'] = []
+        ci_dict[dh_str] = []
         for sigma_val, value in ci_dict.pop('DHm'):
-            ci_dict['ΔHm (kcal / mol)'].append((sigma_val, value))
+            ci_dict[dh_str].append((sigma_val, value))
 
     # Replace Cp0 for ΔCp
     if 'Cp0' in ci_dict:
-        ci_dict['ΔCp (kcal / mol / °C)'] = []
+        ci_dict[cp_str] = []
         for sigma_val, value in ci_dict.pop('Cp0'):
-            ci_dict['ΔCp (kcal / mol / °C)'].append((sigma_val, value))
+            ci_dict[cp_str].append((sigma_val, value))
 
     # Replace m0 for m-value
     if 'm0' in ci_dict:
-        ci_dict['m-value (kcal / mol / M)'] = []
+        ci_dict[m_str] = []
         for sigma_val, value in ci_dict.pop('m0'):
-            ci_dict['m-value (kcal / mol / M)'].append((sigma_val, value))
+            ci_dict[m_str].append((sigma_val, value))
 
     rows = []
 
     for param, vals in ci_dict.items():
 
-        lower = round(float(vals[0][1]), 2)
-        best  = round(float(vals[1][1]), 2)
-        upper = round(float(vals[2][1]), 2)
+        lower = round(float(vals[0][1]), n_digits)
+        best  = round(float(vals[1][1]), n_digits)
+        upper = round(float(vals[2][1]), n_digits)
 
         rows.append({
             "Parameter": param,

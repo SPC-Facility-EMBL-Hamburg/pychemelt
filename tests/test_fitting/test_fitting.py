@@ -30,7 +30,7 @@ CONCS = [1e-8, 1, 1.5, 2, 2.6, 3, 4, 5]
 
 # Model / ground-truth parameters used across tests
 DHm_VAL = 100.0
-Tm_VAL = 60.0
+Tm_VAL = 60.0+273.15
 CP0_VAL = 1.6
 M0_VAL = 2.6
 M1_VAL = 0.0
@@ -60,7 +60,7 @@ rng = np.random.default_rng(RNG_SEED)
 
 params = {
     'DHm': DHm_VAL,
-    'Tm': Tm_VAL+273.15,
+    'Tm': Tm_VAL,
     'Cp0': CP0_VAL,
     'm0': M0_VAL,
     'm1': M1_VAL,
@@ -365,7 +365,7 @@ def test_fit_tc_unfolding_single_slopes_ci_contains_true_params():
 
     true_by_name = {
         # lmfit parameters are in Kelvin for Tm, while simulation constant is in Celsius.
-        'Tm': Tm_VAL + 273.15,
+        'Tm': Tm_VAL,
         'DHm': DHm_VAL,
         'Cp0': CP0_VAL,
         'm0': M0_VAL,

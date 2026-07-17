@@ -32,7 +32,7 @@ CONCS = np.array([2,6,24,72])*1e-6
 # Two state
 # Model / ground-truth parameters
 DHm_VAL = 250
-Tm_VAL = 70
+Tm_VAL = 70 + 273.15
 CP0_VAL = 1.8
 
 
@@ -43,7 +43,7 @@ rng = np.random.default_rng(RNG_SEED)
 
 def_params = {
     'dHm': DHm_VAL,
-    'Tm': Tm_VAL+273.15,
+    'Tm': Tm_VAL,
     'Cp': CP0_VAL,
     'p1_N': INTERCEPT_N,
     'p2_N': 0,
@@ -59,8 +59,8 @@ def_params = {
 # Model / ground-truth parameters
 DHm_VAL_1 = 300
 DHm_VAL_2 = 300
-Tm_VAL_1 = 50
-Tm_VAL_2 = 70
+Tm_VAL_1 = 50 + 273.15
+Tm_VAL_2 = 70 + 273.15
 CP1_VAL = 1.0
 CPTH_VAL = 2.0
 
@@ -74,8 +74,8 @@ INTERCEPT_U = 110
 def_params_three_state = {
     'DH1': DHm_VAL_1,
     'DH2': DHm_VAL_2,
-    'T1': Tm_VAL_1+273.15,
-    'T2': Tm_VAL_2+273.15,
+    'T1': Tm_VAL_1,
+    'T2': Tm_VAL_2,
     'bI': INTERCEPT_I,
     'p1_N': INTERCEPT_N,
     'p2_N': 0,

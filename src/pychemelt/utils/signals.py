@@ -12,6 +12,8 @@ from .rates import (
 )
 import numpy as np
 
+from .constants import R_gas, R_gas_SI
+
 from .fractions import (
     fn_two_state_monomer,
     fu_two_state_dimer,
@@ -53,6 +55,7 @@ def signal_two_state_tc_unfolding(
         p1_U, p2_U, p3_U, p4_U,
         baseline_N_fx,
         baseline_U_fx,
+        gas_cst=R_gas,
         extra_arg=None):
 
     """
@@ -91,7 +94,7 @@ def signal_two_state_tc_unfolding(
         Signal at the given temperatures and denaturant agent concentration, given the parameters
     """
 
-    K   = eq_constant_termochem(T,D,DHm,Tm,Cp0,m0,m1)
+    K   = eq_constant_termochem(T,D,DHm,Tm,Cp0,m0,m1,gas_cst=gas_cst)
     fn  = fn_two_state_monomer(K)
     fu  = 1 - fn
     dT   = shift_temperature_K(T)
@@ -110,6 +113,7 @@ def signal_two_state_t_unfolding(
         baseline_N_fx,
         baseline_U_fx,
         Cp=0,
+        gas_cst=R_gas,
         extra_arg=None):
 
     """
@@ -142,7 +146,7 @@ def signal_two_state_t_unfolding(
         Signal at the given temperatures, given the parameters
     """
 
-    K   = eq_constant_thermo(T,dHm,Tm,Cp)
+    K   = eq_constant_thermo(T,dHm,Tm,Cp,gas_cst=gas_cst)
     fn  = fn_two_state_monomer(K)
     fu  = 1 - fn
 
@@ -161,7 +165,8 @@ def two_state_thermal_unfold_curve(
         p1_U, p2_U, p3_U, 
         baseline_N_fx,
         baseline_U_fx,
-        Cp=0):
+        Cp=0,
+        gas_cst=R_gas):
 
     """
     Two-state temperature unfolding (monomer).
@@ -194,7 +199,7 @@ def two_state_thermal_unfold_curve(
         Signal at the given temperatures, given the parameters
     """
 
-    K   = eq_constant_thermo(T,dHm,Tm,Cp)
+    K   = eq_constant_thermo(T,dHm,Tm,Cp,gas_cst=gas_cst)
     fn  = fn_two_state_monomer(K)
     fu  = 1 - fn
 
@@ -211,7 +216,8 @@ def two_state_thermal_unfold_curve_dimer(
         p1_U, p2_U, p3_U,
         baseline_N_fx,
         baseline_U_fx,
-        Cp=0):
+        Cp=0,
+        gas_cst=R_gas):
     
     """
     Two-state temperature unfolding (dimer).
@@ -249,7 +255,7 @@ def two_state_thermal_unfold_curve_dimer(
 
     """
 
-    K  = eq_constant_thermo(T,dHm,Tm,Cp)
+    K  = eq_constant_thermo(T,dHm,Tm,Cp, gas_cst=gas_cst)
     fu = fu_two_state_dimer(K,C)
     fn = 1 - fu
 
@@ -266,7 +272,8 @@ def two_state_thermal_unfold_curve_trimer(
         p1_U, p2_U, p3_U,
         baseline_N_fx,
         baseline_U_fx,
-        Cp=0):
+        Cp=0,
+        gas_cst=R_gas):
 
     """
     Two-state temperature unfolding (trimer).
@@ -304,7 +311,7 @@ def two_state_thermal_unfold_curve_trimer(
 
     """
 
-    K  = eq_constant_thermo(T,dHm,Tm,Cp)
+    K  = eq_constant_thermo(T,dHm,Tm,Cp, gas_cst=gas_cst)
     fu = fu_two_state_trimer(K,C)
     fn = 1 - fu
 
@@ -322,6 +329,7 @@ def two_state_thermal_unfold_curve_tetramer(
         baseline_N_fx,
         baseline_U_fx,
         Cp=0,
+        gas_cst=R_gas,
         extra_arg=None):
 
     """
@@ -361,7 +369,7 @@ def two_state_thermal_unfold_curve_tetramer(
     """
 
 
-    K  = eq_constant_thermo(T,dHm,Tm,Cp)
+    K  = eq_constant_thermo(T,dHm,Tm,Cp, gas_cst=gas_cst)
     fu = fu_two_state_tetramer(K,C)
     fn = 1 - fu
 
@@ -407,13 +415,14 @@ def unfolding_curve_monomer_monomeric_intermediate(
         baseline_N_fx,
         baseline_U_fx,
         bI,
-        Cp1=0, CpTh=0):
+        Cp1=0, CpTh=0,
+        gas_cst=R_gas):
     """
     Three states reversible unfolding N <-> I <-> U
     """
 
-    A = eq_constant_thermo(T, DH1, T1, Cp1)
-    B = eq_constant_thermo(T, DH2, T2, CpTh - Cp1)
+    A = eq_constant_thermo(T, DH1, T1, Cp1, gas_cst=gas_cst)
+    B = eq_constant_thermo(T, DH2, T2, CpTh - Cp1, gas_cst=gas_cst)
 
     den = (1 + A + A * B)
 
@@ -434,15 +443,16 @@ def unfolding_curve_dimer_monomeric_intermediate(
         baseline_N_fx,
         baseline_U_fx,
         bI,
-        Cp1=0, CpTh=0):
+        Cp1=0, CpTh=0,
+        gas_cst=R_gas):
     """
     N2 ⇔ 2Ι ⇔ 2U Three-state unfolding with a monomeric intermediate
     C = concentration in dimer equivalent
     CpTotal = Cp1 + 2*Cp2
     """
 
-    K1 = eq_constant_thermo(T, DH1, T1, Cp1)
-    K2 = eq_constant_thermo(T, DH2, T2, (CpTh - Cp1) / 2)
+    K1 = eq_constant_thermo(T, DH1, T1, Cp1, gas_cst=gas_cst)
+    K2 = eq_constant_thermo(T, DH2, T2, (CpTh - Cp1) / 2, gas_cst=gas_cst)
 
     fi = fi_three_state_dimer_monomeric_intermediate(K1, K2, C)
     fu = fi * K2
@@ -462,14 +472,15 @@ def unfolding_curve_trimer_monomeric_intermediate(
         baseline_N_fx,
         baseline_U_fx,
         bI,
-        Cp1=0, CpTh=0):
+        Cp1=0, CpTh=0,
+        gas_cst=R_gas):
     """
     N3 ⇔ 3Ι ⇔ 3U Three-state unfolding with a monomeric intermediate
     C = concentration of the trimer equivalent
     """
 
-    K1 = eq_constant_thermo(T, DH1, T1, Cp1)
-    K2 = eq_constant_thermo(T, DH2, T2, (CpTh - Cp1) / 3)  # We should actually find how Cp2 depends on CpTh
+    K1 = eq_constant_thermo(T, DH1, T1, Cp1, gas_cst=gas_cst)
+    K2 = eq_constant_thermo(T, DH2, T2, (CpTh - Cp1) / 3, gas_cst=gas_cst)  # We should actually find how Cp2 depends on CpTh
 
     fi = fi_three_state_trimer_monomeric_intermediate(K1, K2, C)
 
@@ -491,14 +502,15 @@ def unfolding_curve_tetramer_monomeric_intermediate(
         baseline_N_fx,
         baseline_U_fx,
         bI,
-        Cp1=0, CpTh=0):
+        Cp1=0, CpTh=0,
+        gas_cst=R_gas):
     """
     N4 ⇔ 4Ι ⇔ 4U Three-state unfolding with a monomeric intermediate
     C = concentration of the tetramermer equivalent
     """
 
-    K1 = eq_constant_thermo(T, DH1, T1, Cp1)
-    K2 = eq_constant_thermo(T, DH2, T2, (CpTh - Cp1) / 4)
+    K1 = eq_constant_thermo(T, DH1, T1, Cp1, gas_cst=gas_cst)
+    K2 = eq_constant_thermo(T, DH2, T2, (CpTh - Cp1) / 4, gas_cst=gas_cst)
 
     fi = fi_three_state_tetramer_monomeric_intermediate(K1, K2, C)
 
@@ -525,14 +537,15 @@ def unfolding_curve_trimer_trimeric_intermediate(
         baseline_N_fx,
         baseline_U_fx,
         bI,
-        Cp1=0, CpTh=0):
+        Cp1=0, CpTh=0,
+        gas_cst=R_gas):
     """
     N3 ⇔ Ι3 ⇔ 3U Three-state unfolding with a trimeric intermediate
     C = concentration of the trimer equivalent
     """
 
-    K1 = eq_constant_thermo(T, DH1, T1, Cp1)
-    K2 = eq_constant_thermo(T, DH2, T2, CpTh - Cp1)
+    K1 = eq_constant_thermo(T, DH1, T1, Cp1, gas_cst=gas_cst)
+    K2 = eq_constant_thermo(T, DH2, T2, CpTh - Cp1, gas_cst=gas_cst)
 
     fu = fu_three_state_trimer_trimeric_intermediate(K1, K2, C)
     fi = fi_three_state_trimer_trimeric_intermediate(fu, K2, C)
@@ -552,15 +565,16 @@ def unfolding_curve_dimer_dimeric_intermediate(
         baseline_N_fx,
         baseline_U_fx,
         bI,
-        Cp1=0, CpTh=0):
+        Cp1=0, CpTh=0,
+        gas_cst=R_gas):
     """
     N2 ⇔ Ι2 ⇔ 2U Three-state unfolding with a monomeric intermediate
     C       = molar concentration in dimer equivalent
     CpTotal = Cp1 + Cp2
     """
 
-    K1 = eq_constant_thermo(T, DH1, T1, Cp1)
-    K2 = eq_constant_thermo(T, DH2, T2, CpTh - Cp1)
+    K1 = eq_constant_thermo(T, DH1, T1, Cp1, gas_cst=gas_cst)
+    K2 = eq_constant_thermo(T, DH2, T2, CpTh - Cp1, gas_cst=gas_cst)
 
     fu = fu_three_state_dimer_dimeric_intermediate(K1, K2, C)
     fi = fi_three_state_dimer_dimeric_intermediate(fu, K2, C)

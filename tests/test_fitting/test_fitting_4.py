@@ -21,7 +21,7 @@ CONCS = [0.01, 1, 2, 2.6, 3, 4, 5]
 
 # Model / ground-truth parameters
 DHm_VAL = 120
-Tm_VAL = 65
+Tm_VAL = 65 + 273.15
 CP0_VAL = 1.8
 M0_VAL = 2.6
 M1_VAL = 0
@@ -35,7 +35,7 @@ rng = np.random.default_rng(RNG_SEED)
 
 def_params = {
     'DHm': DHm_VAL,
-    'Tm': Tm_VAL+273.15,
+    'Tm': Tm_VAL,
     'Cp0': CP0_VAL,
     'm0': M0_VAL,
     'm1': M1_VAL,

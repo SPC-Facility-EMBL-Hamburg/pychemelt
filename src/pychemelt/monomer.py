@@ -14,11 +14,9 @@ from lmfit import fit_report
 from .main import Sample
 
 from .utils.signals import signal_two_state_tc_unfolding
-
-from .utils.constants import KCAL_TO_KJ_CST
+from .utils.constants import R_gas
 
 from .utils.math import (
-    temperature_to_celsius,
     temperature_to_kelvin,
     relative_errors,
     find_line_outliers,
@@ -66,19 +64,6 @@ class Monomer(Sample):
         self.model_scale_factor = False # Flag for model scale factor for fitting
         self.Tms = None 
         self.p0_thermodynamics = None
-    
-        # Set default units
-        self.conv_factor = 1
-        self.energy_units_str = "kcal"
-
-    def set_units(self,format='international'):
-
-        self.temp_units_str = "°C" if format != "international" else "°K"
-        self.conv_factor    = 1 if format != "international" else KCAL_TO_KJ_CST
-        self.energy_units_str = "kcal" if format != "international" else "kJ"
-        self.center_temp_fx = temperature_to_celsius if format != "international" else temperature_to_kelvin
-
-        return None
 
     def set_denaturant_concentrations(self, concentrations=None):
 
@@ -204,8 +189,11 @@ class Monomer(Sample):
                 self.third_param_Ns_per_signal[i],
                 self.third_param_Us_per_signal[i],
                 baseline_native_fx=self.baseline_N_fx,
-                baseline_unfolded_fx=self.baseline_U_fx
+                baseline_unfolded_fx=self.baseline_U_fx,
+                gas_cst=self.gas_cst
             )
+            
+            Tms = [self.center_temp_fx(x) for x in Tms]
 
             self.Tms_multiple.append(Tms)
             self.dHs_multiple.append(dHs)
@@ -232,7 +220,7 @@ class Monomer(Sample):
 
         # Requires self.single_fit_done
 
-        expected_Cp0 = self.n_residues * 0.0148 - 0.1267
+        expected_Cp0 = (self.n_residues * 0.0148 - 0.1267) * self.gas_cst / R_gas  # Expected Cp0 based on the number of residues
 
         if not self.single_fit_done:
             self.fit_thermal_unfolding_local()
@@ -364,8 +352,6 @@ class Monomer(Sample):
 
         DG = DHm * (1 - T / Tm) + Cp0 * (T - Tm - T * np.log(T / Tm))
 
-        DG = DG * self.conv_factor
-
         dg_df = pd.DataFrame({
             "DG ({}/mol)".format(self.energy_units_str): DG,
             "Temperature (°{})".format(self.temp_units_str): self.center_temp_fx(T_c)
@@ -396,6 +382,9 @@ class Monomer(Sample):
             List of two values, the lower and upper bounds for the Tm value. If None, bounds set automatically
         cp_value : float, optional
             If provided, the Cp value is fixed to this value, the bounds are ignored
+        user_thermodynamic_params_guess : list, optional
+            List of four values, the user-defined guess for the thermodynamic parameters (Tm, dH, Cp, m-value)
+            If None, the guess is calculated automatically
 
         Returns
         -------
@@ -413,17 +402,20 @@ class Monomer(Sample):
         if self.Tms is None or len(self.Tms) == 0:
             raise ValueError('Tms is None or empty. Please run guess_Cp before calling this method.')
 
-        max_tm_id = np.argmax(self.Tms)
-
         if user_thermodynamic_params_guess is not None:
 
             p0 = user_thermodynamic_params_guess
-        
+
         else:
 
             if self.thermodynamic_params_guess is None:
 
-                p0 = [self.Tms[max_tm_id], np.max([self.dHs[max_tm_id], 80]), self.Cp0, 2.8]
+                max_tm_id = np.argmax(self.Tms)
+                p0 = [
+                    self.Tms[max_tm_id], 
+                    np.max([self.dHs[max_tm_id], 100*self.gas_cst / R_gas]), 
+                    self.Cp0, 
+                    2.8*self.gas_cst / R_gas]
 
             else:
 
@@ -437,7 +429,7 @@ class Monomer(Sample):
         if self.limited_tm:
 
             tm_lower, tm_upper = tm_limits
-
+            
         else:
 
             tm_lower = p0[0] - 12
@@ -461,8 +453,8 @@ class Monomer(Sample):
 
             if self.thermodynamic_params_guess is None:
 
-                dh_lower = 10
-                dh_upper = 500
+                dh_lower = 10 * self.gas_cst / R_gas
+                dh_upper = 500 * self.gas_cst / R_gas
 
             else:
 
@@ -483,7 +475,8 @@ class Monomer(Sample):
 
         else:
 
-            cp_lower, cp_upper = 0.1, 5
+            cp_lower = 0.1 * self.gas_cst / R_gas
+            cp_upper = 5 * self.gas_cst / R_gas
 
         if self.fixed_cp:
 
@@ -504,8 +497,8 @@ class Monomer(Sample):
 
         id_m = 2 + (not self.fixed_cp)
 
-        low_bounds[id_m] = 0.5
-        high_bounds[id_m] = 9
+        low_bounds[id_m] = 0.5 * self.gas_cst / R_gas
+        high_bounds[id_m] = 9 * self.gas_cst / R_gas
 
         self.p0_thermodynamics = p0
         self.low_bounds_thermodynamics = low_bounds
@@ -514,28 +507,6 @@ class Monomer(Sample):
 
         return None
     
-
-    def create_params_with_units(self):
-
-        # Create attributes copies with the req. units
-        # This is done so the parameters are shown in kjoul or kcal
-        self.fit_params_with_units = (self.global_fit_params).copy()
-        self.low_bounds_with_units = (self.low_bounds).copy()
-        self.high_bounds_with_units = (self.high_bounds).copy()
-
-        self.fit_params_with_units[0] = self.center_temp_fx(self.fit_params_with_units[0])
-        self.low_bounds_with_units[0] = self.center_temp_fx(self.low_bounds_with_units[0])
-        self.high_bounds_with_units[0] = self.center_temp_fx(self.high_bounds_with_units[0])
-
-        ids_to_multiply = [1,2,3] if self.cp_value is None else [1,2]
-
-        for i in ids_to_multiply:
-
-            self.fit_params_with_units[i] *= self.conv_factor
-            self.low_bounds_with_units[i] *= self.conv_factor
-            self.high_bounds_with_units[i] *= self.conv_factor
-
-        return None
 
     def fit_thermal_unfolding_global(
             self,
@@ -685,6 +656,7 @@ class Monomer(Sample):
             'cp_value' : cp_value,
             'baseline_native_fx' : self.baseline_N_fx,
             'baseline_unfolded_fx' : self.baseline_U_fx,
+            'gas_cst' : self.gas_cst,
             'signal_fx' : signal_two_state_tc_unfolding
         }
 
@@ -743,9 +715,14 @@ class Monomer(Sample):
             fit_fx,
             result=result,
             minimizer=minimizer,
+            gas_cst=self.gas_cst
         )
 
         rel_errors = relative_errors(global_fit_params, cov)
+
+        global_fit_params[0] = self.center_temp_fx(global_fit_params[0])
+        low_bounds[0] = self.center_temp_fx(low_bounds[0])
+        high_bounds[0] = self.center_temp_fx(high_bounds[0])
 
         self.p0 = p0
         self.low_bounds = low_bounds
@@ -764,8 +741,7 @@ class Monomer(Sample):
 
         self.params_names = params_names
 
-        self.create_params_with_units()
-        self.create_params_df(use_params_with_units=True)
+        self.create_params_df()
         self.create_dg_df()
 
         # Add the kwargs and fit_fx to the object for potential later use in leave-one-out analysis
@@ -931,7 +907,8 @@ class Monomer(Sample):
             'signal_ids':self.signal_ids,
             'baseline_native_fx': self.baseline_N_fx,
             'baseline_unfolded_fx': self.baseline_U_fx,
-            'signal_fx' : signal_two_state_tc_unfolding
+            'signal_fx' : signal_two_state_tc_unfolding,
+            'gas_cst': self.gas_cst
         }
 
         fit_fx = fit_tc_unfolding_shared_slopes_many_signals
@@ -965,9 +942,14 @@ class Monomer(Sample):
             fit_fx,
             result=result,
             minimizer=minimizer,
+            gas_cst=self.gas_cst
         )
 
         rel_errors = relative_errors(global_fit_params, cov)
+
+        global_fit_params[0] = self.center_temp_fx(global_fit_params[0])
+        low_bounds[0] = self.center_temp_fx(low_bounds[0])
+        high_bounds[0] = self.center_temp_fx(high_bounds[0])
 
         self.p0 = p0
         self.low_bounds = low_bounds
@@ -983,8 +965,7 @@ class Monomer(Sample):
         self.result = result
         self.minimizer = minimizer
 
-        self.create_params_with_units()
-        self.create_params_df(use_params_with_units=True)
+        self.create_params_df()
         self.create_dg_df()
 
         self.global_global_fit_done = True
@@ -1208,7 +1189,8 @@ class Monomer(Sample):
             'baseline_native_fx' : self.baseline_N_fx,
             'baseline_unfolded_fx' : self.baseline_U_fx,
             'fit_native_den_slope' : True,
-            'fit_unfolded_den_slope' : True
+            'fit_unfolded_den_slope' : True,
+            'gas_cst' : self.gas_cst
         }
 
         fit_fx = fit_tc_unfolding_many_signals
@@ -1304,6 +1286,10 @@ class Monomer(Sample):
 
         rel_errors = relative_errors(global_fit_params, cov)
         
+        global_fit_params[0] = self.center_temp_fx(global_fit_params[0])
+        low_bounds[0] = self.center_temp_fx(low_bounds[0])
+        high_bounds[0] = self.center_temp_fx(high_bounds[0])
+
         self.params_names = params_names
         self.p0 = p0
         self.low_bounds = low_bounds
@@ -1317,8 +1303,7 @@ class Monomer(Sample):
         self.result = result
         self.minimizer = minimizer
 
-        self.create_params_with_units()
-        self.create_params_df(use_params_with_units=True)
+        self.create_params_df()
         self.create_dg_df()
 
         self.global_global_global_fit_done = True
@@ -1503,27 +1488,33 @@ class Monomer(Sample):
             
             global_fit_params, _, _, _, _ = fit_fx(**kwargs)
 
-            Tm = global_fit_params[0]
+            Tm = self.center_temp_fx(global_fit_params[0])
+                    
+            low_bound_Tm = self.center_temp_fx(self.low_bounds[0]) 
+            high_bound_Tm = self.center_temp_fx(self.high_bounds[0])
 
-            low_bound_Tm = self.low_bounds[0] # Make sure to compare in Kelvin units
-            high_bound_Tm = self.high_bounds[0] # Make sure to compare in Kelvin units
+            print(Tm, low_bound_Tm, high_bound_Tm)
 
             tm_is_acceptable = Tm >= low_bound_Tm + 0.5 and Tm <= high_bound_Tm - 0.5
 
             DH = global_fit_params[1]
 
-            DH_is_acceptable = DH >= self.low_bounds[1] + 5 and DH <= self.high_bounds[1] - 5
+            dh_factor = 5 * self.gas_cst / R_gas
+
+            DH_is_acceptable = DH >= self.low_bounds[1] + dh_factor and DH <= self.high_bounds[1] - dh_factor
 
             if self.cp_value is None:
 
                 Cp = global_fit_params[2]
 
-                Cp_is_acceptable = Cp >= self.low_bounds[2] + 0.1 and Cp <= self.high_bounds[2] - 0.1
+                cp_factor = 0.1 * self.gas_cst / R_gas
+                Cp_is_acceptable = Cp >= self.low_bounds[2] + cp_factor and Cp <= self.high_bounds[2] - cp_factor
    
             id = 2 + (self.cp_value is None)
             m0 = global_fit_params[id]
 
-            m0_is_acceptable = m0 >= self.low_bounds[id] + 0.1 and m0 <= self.high_bounds[id] - 0.1
+            m0_factor = 0.1 * self.gas_cst / R_gas
+            m0_is_acceptable = m0 >= self.low_bounds[id] + m0_factor and m0 <= self.high_bounds[id] - m0_factor
 
             keep_fit = tm_is_acceptable and DH_is_acceptable and m0_is_acceptable and (Cp_is_acceptable if self.cp_value is None else True)
 
@@ -1547,15 +1538,10 @@ class Monomer(Sample):
         params = ['Tm ({})'.format(self.temp_units_str),
                   'ΔHm ({} / mol)'.format(self.energy_units_str)]
         
-        Tms = [self.center_temp_fx(x) for x in Tms]
-        DHs = [x * self.conv_factor for x in DHs]
-
         if self.cp_value is None:
             params.append('ΔCp ({} / mol / {})'.format(self.energy_units_str,self.temp_units_str))
-            Cps = [x * self.conv_factor for x in Cps]
 
         params.append('m-value ({} / mol / M)'.format(self.energy_units_str))
-        m0s = [x * self.conv_factor for x in m0s]
 
         if n_fits == 0:
             self.loo_df = pd.DataFrame({
@@ -1629,25 +1615,7 @@ class Monomer(Sample):
             # https://lmfit.github.io/lmfit-py/confidence.html
         )
 
-        ci_df = ci_dict_to_summary_df(ci_results,percentage=percentage)
-
-        # Convert to appropiate units, if required.
-        if self.energy_units_str != 'kcal':
-
-            for i in range(len(ci_df)):
-
-                ci_df.iloc[i,0].replace("°C","°C")
-                ci_df.iloc[i,0].replace("kcal","kJ")
-            
-        ci_df.iloc[0,1] = self.center_temp_fx(ci_df.iloc[0,1]) 
-        ci_df.iloc[0,2] = self.center_temp_fx(ci_df.iloc[0,2]) 
-        ci_df.iloc[0,3] = self.center_temp_fx(ci_df.iloc[0,3]) 
-
-        for i in range(len(ci_df)-1):
-
-            ci_df.iloc[i+1,1] = ci_df.iloc[i+1,1] * self.conv_factor
-            ci_df.iloc[i+1,2] = ci_df.iloc[i+1,2] * self.conv_factor
-            ci_df.iloc[i+1,3] = ci_df.iloc[i+1,3] * self.conv_factor
+        ci_df = ci_dict_to_summary_df(ci_results,percentage=percentage,energy_units_str=self.energy_units_str)
 
         self.ci_df = ci_df
 

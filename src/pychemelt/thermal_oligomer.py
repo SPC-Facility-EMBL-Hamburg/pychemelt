@@ -11,6 +11,8 @@ from copy import deepcopy
 
 from .main import Sample
 
+from .utils.constants import R_gas
+
 from .utils.signals import (
     map_two_state_model_to_signal_fx,
     map_three_state_model_to_signal_fx,
@@ -48,7 +50,6 @@ from .utils.fitting import (
     evaluate_fitting_and_refit,
     baseline_fx_name_to_req_params
 )
-
 
 
 class ThermalOligomer(Sample):
@@ -215,6 +216,10 @@ class ThermalOligomer(Sample):
         # Needed for compatibility
         self.denaturant_concentrations = self.oligomer_concentrations
 
+        for i in range(self.nr_signals):
+
+            self.temp_lst_multiple[i] = [self.center_temp_fx(x) for x in self.temp_lst_multiple[i]]
+
         return None
 
     
@@ -240,7 +245,7 @@ class ThermalOligomer(Sample):
         if self.n_residues == 0:
             raise ValueError('The number of residues is still zero. Please set n_residues before calling guess_Cp')
 
-        Cp0 = self.n_residues * 0.0148 - 0.1267
+        Cp0 = (self.n_residues * 0.0148 - 0.1267) * self.gas_cst / R_gas 
 
         # Cp0 needs to be positive
         Cp0 = max(Cp0, 0)
@@ -345,8 +350,8 @@ class ThermalOligomer(Sample):
         DG = DHm * (1 - T / Tm) + Cp0 * (T - Tm - T * np.log(T / Tm))
 
         dg_df = pd.DataFrame({
-            'DG (kcal/mol)': DG,
-            'Temperature (°C)': T_c
+            'DG ({}/mol)'.format(self.energy_units_str): DG,
+            'Temperature (°{})'.format(self.temp_units_str): self.center_temp_fx(T_c)
         })
 
         self.dg_df = dg_df
@@ -409,22 +414,21 @@ class ThermalOligomer(Sample):
 
         Tm = np.average(tm_lst)
 
-        dh = 100
+        dh = 100 
 
         if self.model == 'Dimer':
-            dh = 120
+            dh = 120 
         elif self.model == 'Trimer':
-            dh = 150
+            dh = 150 
         elif self.model == 'Tetramer':
-            dh = 180
+            dh = 180 
 
-        p0 = [Tm, dh, self.Cp0]
-
+        p0 = [Tm, dh * self.gas_cst / R_gas, self.Cp0]
 
         params_names = [
-            'Tm (°C)',
-            'ΔH (kcal/mol)',
-            'Cp (kcal/mol/°C)']
+            'Tm ({})'.format(self.temp_units_str),
+            'ΔH ({}/mol)'.format(self.energy_units_str),
+            'ΔCp ({}/mol/{})'.format(self.energy_units_str, self.temp_units_str)]
 
         self.first_param_Ns_expanded = np.concatenate(self.first_param_Ns_per_signal, axis=0)
         self.first_param_Us_expanded = np.concatenate(self.first_param_Us_per_signal, axis=0)
@@ -512,7 +516,6 @@ class ThermalOligomer(Sample):
                 if self.model == 'Tetramer':
                     tm_lower, tm_upper, p0[0] = tm_lower + 10, tm_upper + 20, p0[0] + 20
 
-
         low_bounds[0] = tm_lower
         high_bounds[0] = tm_upper
 
@@ -528,8 +531,8 @@ class ThermalOligomer(Sample):
             p0[1] = adjust_value_to_interval(p0[1], dh_lower, dh_upper, 1)
 
         else:
-            dh_lower = 10
-            dh_upper = 500
+            dh_lower = 10 * self.gas_cst / R_gas
+            dh_upper = 500 * self.gas_cst / R_gas
 
 
         low_bounds[1] = dh_lower
@@ -546,7 +549,7 @@ class ThermalOligomer(Sample):
 
         else:
 
-            cp_lower, cp_upper = 0.1, 5
+            cp_lower, cp_upper = 0.1 * self.gas_cst / R_gas, 5 * self.gas_cst / R_gas
 
         if self.fixed_cp:
 
@@ -578,7 +581,8 @@ class ThermalOligomer(Sample):
             'cp_value' : cp_value,
             'baseline_native_fx' : self.baseline_N_fx,
             'baseline_unfolded_fx' : self.baseline_U_fx,
-            'signal_fx' : signal_fx
+            'signal_fx' : signal_fx,
+            'gas_cst': self.gas_cst
         }
 
         fit_fx = fit_oligomer_unfolding_single_slopes
@@ -692,17 +696,17 @@ class ThermalOligomer(Sample):
                 raise ValueError('CpTh must be large enough for fitting. If you do not wish to fit the Cp values, omit this parameter.')
 
             # Parameters for T1, T2, will be added later via gridsearch
-            p0 = [0, 200, 0, 200, self.Cp0]
+            p0 = [0, 200 * self.gas_cst / R_gas, 0, 200 * self.gas_cst / R_gas, self.Cp0]
 
         else:
-            p0 = [0, 200, 0, 200, 0]
+            p0 = [0, 200* self.gas_cst / R_gas, 0, 200* self.gas_cst / R_gas, 0]
 
         params_names = [
-            'Tm1 (°C)',
-            'ΔH1 (kcal/mol)',
-            'Tm2 (°C)',
-            'ΔH2 (kcal/mol)',
-            'Cp1 (kcal/mol/°C)']
+            'Tm1 (°{})'.format(self.temp_units_str),
+            'ΔH1 ({}/mol)'.format(self.energy_units_str),
+            'Tm2 (°{})'.format(self.temp_units_str),
+            'ΔH2 ({}/mol)'.format(self.energy_units_str),
+            'ΔCp1 ({}/mol/{})'.format(self.energy_units_str, self.temp_units_str)]
 
         self.first_param_Ns_expanded = np.concatenate(self.first_param_Ns_per_signal, axis=0)
         self.first_param_Us_expanded = np.concatenate(self.first_param_Us_per_signal, axis=0)
@@ -810,19 +814,19 @@ class ThermalOligomer(Sample):
 
         else:
             # Set dh1_lower 30 for monomer, 50 for dimer, 70 for trimer and 90 for tetramer, and dh1_upper to 500 for all
-            lower_value = 30
+            lower_value = 30 
             if "Dimer" in self.model:
-                lower_value = 50
+                lower_value = 50 
             elif "Trimer" in self.model:
-                lower_value = 70
+                lower_value = 70 
             elif "Tetramer" in self.model:
-                lower_value = 90
+                lower_value = 90 
 
-            dh1_lower = lower_value
-            dh1_upper = 500
+            dh1_lower = lower_value * self.gas_cst / R_gas
+            dh1_upper = 500 * self.gas_cst / R_gas
 
             dh2_lower = lower_value
-            dh2_upper = 500
+            dh2_upper = 500 * self.gas_cst / R_gas
 
         low_bounds[1] = dh1_lower
         high_bounds[1] = dh1_upper
@@ -845,7 +849,7 @@ class ThermalOligomer(Sample):
 
         else:
 
-            cp_lower, cp_upper = 0.1, CpTh - 0.4
+            cp_lower, cp_upper = 0.1 * self.gas_cst / R_gas, CpTh - 0.4 * self.gas_cst / R_gas
 
             low_bounds[4]  = cp_lower
             high_bounds[4] = cp_upper
@@ -874,6 +878,7 @@ class ThermalOligomer(Sample):
             'baseline_unfolded_fx': self.baseline_U_fx,
             'signal_fx': signal_fx,
             'CpTh_value': CpTh,
+            'gas_cst': self.gas_cst
         }
 
         fit_fx = fit_oligomer_unfolding_three_states_single_slopes
@@ -974,7 +979,8 @@ class ThermalOligomer(Sample):
             result=result,
             minimizer=minimizer,
             fit_m_value=False,
-            three_state_model=True
+            three_state_model=True,
+            gas_cst=self.gas_cst
         )
 
         rel_errors = relative_errors(global_fit_params, cov)
@@ -1145,6 +1151,7 @@ class ThermalOligomer(Sample):
             'baseline_native_fx': self.baseline_N_fx,
             'baseline_unfolded_fx': self.baseline_U_fx,
             'signal_fx' : signal_fx,
+            'gas_cst': self.gas_cst
         }
 
         fit_fx = fit_oligomer_unfolding_shared_slopes_many_signals
@@ -1179,6 +1186,7 @@ class ThermalOligomer(Sample):
             result=result,
             minimizer=minimizer,
             fit_m_value=False,
+            gas_cst=self.gas_cst
         )
 
         rel_errors = relative_errors(global_fit_params, cov)
@@ -1357,6 +1365,7 @@ class ThermalOligomer(Sample):
             'baseline_unfolded_fx': self.baseline_U_fx,
             'signal_fx' : signal_fx,
             'CpTh_value' : self.cp_value,
+            'gas_cst': self.gas_cst
         }
 
         fit_fx = fit_oligomer_unfolding_three_states_shared_slopes_many_signals
@@ -1391,7 +1400,8 @@ class ThermalOligomer(Sample):
             result=result,
             minimizer=minimizer,
             fit_m_value=False,
-            three_state_model=True
+            three_state_model=True,
+            gas_cst=self.gas_cst
         )
 
         rel_errors = relative_errors(global_fit_params, cov)
@@ -1576,7 +1586,8 @@ class ThermalOligomer(Sample):
             'scale_factor_exclude_ids':scale_factor_exclude_ids,
             'signal_fx' : signal_fx,
             'baseline_native_fx' : self.baseline_N_fx,
-            'baseline_unfolded_fx' : self.baseline_U_fx
+            'baseline_unfolded_fx' : self.baseline_U_fx,
+            'gas_cst': self.gas_cst
         }
 
         fit_fx = fit_oligomer_unfolding_many_signals
@@ -1663,7 +1674,7 @@ class ThermalOligomer(Sample):
                     kwargs['high_bounds'] = high_bounds
                     kwargs['scale_factor_exclude_ids'] = scale_factor_exclude_ids
 
-                    global_fit_params, cov, predicted, result, minimizer = fit_fx(**kwargs)
+                    global_fit_params, cov, predicted, _, _ = fit_fx(**kwargs)
 
         rel_errors = relative_errors(global_fit_params, cov)
 
@@ -1870,6 +1881,7 @@ class ThermalOligomer(Sample):
             'baseline_native_fx' : self.baseline_N_fx,
             'baseline_unfolded_fx' : self.baseline_U_fx,
             'CpTh_value' : self.cp_value,
+            'gas_cst': self.gas_cst
         }
 
         fit_fx = fit_oligomer_unfolding_three_states_many_signals

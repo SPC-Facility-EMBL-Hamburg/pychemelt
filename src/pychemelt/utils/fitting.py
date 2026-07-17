@@ -9,6 +9,7 @@ from scipy.optimize     import curve_fit
 from scipy.optimize     import least_squares
 
 from .math import get_rss, temperature_to_kelvin, temperature_to_celsius
+from .constants import R_gas
 
 __all__ = [
     "fit_line_robust",
@@ -237,6 +238,7 @@ def fit_thermal_unfolding(
     baseline_native_fx,
     baseline_unfolded_fx,
     Cp,
+    gas_cst=R_gas,
     list_of_oligomer_conc=None):
 
     """
@@ -279,7 +281,7 @@ def fit_thermal_unfolding(
     predicted_lst : list of numpy.ndarray
         Predicted signals for each dataset based on the fitted parameters
     """
-
+    
     all_signal = np.concatenate(list_of_signals, axis=0)
 
     baseline_native_params = baseline_fx_name_to_req_params(baseline_native_fx)
@@ -383,7 +385,8 @@ def fit_thermal_unfolding(
                 p1_U, p2_U, p3_U,
                 baseline_native_fx,
                 baseline_unfolded_fx,
-                Cp
+                Cp,
+                gas_cst=gas_cst
             )
             signal.append(y)
 
@@ -405,9 +408,6 @@ def fit_thermal_unfolding(
         predicted_lst.append(predicted[init:init+n])
         init += n
 
-    # Convert the Tm to Celsius
-    global_fit_params[0] = temperature_to_celsius(global_fit_params[0])
-
     return global_fit_params, cov, predicted_lst
 
 
@@ -426,7 +426,8 @@ def fit_tc_unfolding_single_slopes(
     cp_value=None,
     tm_value=None,
     dh_value=None,
-    method='least_squares'):
+    method='least_squares',
+    gas_cst=R_gas):
     """
     Vectorized and optimized version of global thermal unfolding fitting.
 
@@ -479,8 +480,6 @@ def fit_tc_unfolding_single_slopes(
     y_all = np.concatenate(list_of_signals)
 
     d_all = np.repeat(denaturant_concentrations, lengths)
-
-    c_all = np.zeros_like(T_all, dtype=float)
 
     # ------------------------------------------------------------
     # Baseline parameter requirements
@@ -659,7 +658,7 @@ def fit_tc_unfolding_single_slopes(
             0, p1U_all, p2U_arg, p3U_arg,
             baseline_native_fx,
             baseline_unfolded_fx,
-            c_all
+            gas_cst=gas_cst
         )
 
     # ------------------------------------------------------------
@@ -687,12 +686,6 @@ def fit_tc_unfolding_single_slopes(
     predicted = y_all + result.residual
     predicted_lst = [predicted[start:end] for start, end in zip(dataset_starts, dataset_ends)]
 
-    # Convert Tm back to Celsius for the returned vector
-    if tm_value is None:
-        global_fit_params[0] = temperature_to_celsius(global_fit_params[0])
-        low_bounds[0] = temperature_to_celsius(low_bounds[0])
-        high_bounds[0] = temperature_to_celsius(high_bounds[0])
-
     return global_fit_params, cov, predicted_lst, result, minimizer
     
 def fit_oligomer_unfolding_single_slopes(
@@ -709,6 +702,7 @@ def fit_oligomer_unfolding_single_slopes(
         tm_value=None,
         dh_value=None,
         method='least_squares',
+        gas_cst=R_gas
 ):
     """
     Vectorized and optimized version of global thermal unfolding fitting. of oligomers
@@ -948,6 +942,7 @@ def fit_oligomer_unfolding_single_slopes(
                 baseline_native_fx,
                 baseline_unfolded_fx,
                 Cp0,
+                gas_cst=gas_cst
             )
 
 
@@ -967,10 +962,6 @@ def fit_oligomer_unfolding_single_slopes(
     predicted = y_all + result.residual
     predicted_lst = [predicted[start:end] for start, end in zip(dataset_starts, dataset_ends)]
 
-    # Convert the Tm back to Celsius
-    if tm_value is None:
-        global_fit_params[0] = temperature_to_celsius(global_fit_params[0])
-
     return global_fit_params, cov, predicted_lst, result, minimizer
 
 def fit_oligomer_unfolding_three_states_single_slopes(
@@ -989,7 +980,8 @@ def fit_oligomer_unfolding_three_states_single_slopes(
     dh2=None,
     CpTh_value=None,
     method="least_squares",
-    max_nfev=None
+    max_nfev=None,
+    gas_cst=R_gas
 
 ):
     """
@@ -1057,13 +1049,13 @@ def fit_oligomer_unfolding_three_states_single_slopes(
 
     if dh1 is not None:
         initial_parameters[1] = dh1
-        low_bounds[1] = dh1 - 50
-        high_bounds[1] = dh1 + 50
+        low_bounds[1] = dh1 - 50 * gas_cst / R_gas
+        high_bounds[1] = dh1 + 50 * gas_cst / R_gas
 
     if dh2 is not None:
         initial_parameters[3] = dh2
-        low_bounds[3] = dh2 - 50
-        high_bounds[3] = dh2 + 50
+        low_bounds[3] = dh2 - 50 * gas_cst / R_gas
+        high_bounds[3] = dh2 + 50 * gas_cst / R_gas
 
     # ------------------------------------------------------------
     # Build lmfit parameters
@@ -1225,6 +1217,7 @@ def fit_oligomer_unfolding_three_states_single_slopes(
             bI_all,
             Cp1,
             CpTh,
+            gas_cst=gas_cst
         )
 
     def residuals(pars):
@@ -1240,8 +1233,8 @@ def fit_oligomer_unfolding_three_states_single_slopes(
     predicted_lst = [predicted[start:end] for start, end in zip(dataset_starts, dataset_ends)]
 
     # Convert fitted Tm values back to Celsius
-    global_fit_params[0] = temperature_to_celsius(global_fit_params[0])
-    global_fit_params[2] = temperature_to_celsius(global_fit_params[2])
+    #global_fit_params[0] = temperature_to_celsius(global_fit_params[0])
+    #global_fit_params[2] = temperature_to_celsius(global_fit_params[2])
 
     return global_fit_params, cov, predicted_lst, result, minimizer
 
@@ -1261,7 +1254,8 @@ def fit_tc_unfolding_shared_slopes_many_signals(
     cp_value=None,
     tm_value=None,
     dh_value=None,
-    method='least_squares'
+    method='least_squares',
+    gas_cst=R_gas
 ):
     """
     Vectorized fitting of thermochemical unfolding curves for multiple signal types
@@ -1463,7 +1457,6 @@ def fit_tc_unfolding_shared_slopes_many_signals(
         for i, T in enumerate(list_of_temperatures):
             start, end = dataset_starts[i], dataset_ends[i]
             d = denaturant_concentrations[i]
-            c = 0
             sig_id = signal_ids[i]
 
             predicted_all[start:end] = signal_fx(
@@ -1472,7 +1465,7 @@ def fit_tc_unfolding_shared_slopes_many_signals(
                 0, intercepts_unfolded_arr[i], p2_u_s[sig_id] if baseline_unfolded_params[0] else 0.0, p3_u_s[sig_id] if baseline_unfolded_params[1] else 0.0,
                 baseline_native_fx,
                 baseline_unfolded_fx,
-                c
+                gas_cst=gas_cst
             )
 
         return predicted_all - all_signal
@@ -1487,12 +1480,6 @@ def fit_tc_unfolding_shared_slopes_many_signals(
     # Convert predicted signal into list of arrays per dataset
     predicted = all_signal + result.residual
     predicted_lst = [predicted[start:end] for start, end in zip(dataset_starts, dataset_ends)]
-
-    # Convert the Tm back to Celsius
-    if tm_value is None:
-        global_fit_params[0] = temperature_to_celsius(global_fit_params[0])
-        low_bounds[0] = temperature_to_celsius(low_bounds[0])
-        high_bounds[0] = temperature_to_celsius(high_bounds[0])
 
     return global_fit_params, cov, predicted_lst, result, minimizer
 
@@ -1510,7 +1497,8 @@ def fit_oligomer_unfolding_shared_slopes_many_signals(
     cp_value=None,
     tm_value=None,
     dh_value=None,
-    method='least_squares'
+    method='least_squares',
+    gas_cst=R_gas
 ):
     """
     Vectorized fitting of oligomer thermal unfolding curves for multiple signal types
@@ -1707,7 +1695,8 @@ def fit_oligomer_unfolding_shared_slopes_many_signals(
                 intercepts_unfolded_arr[i], p2_u_s[sig_id] if baseline_unfolded_params[0] else 0.0, p3_u_s[sig_id] if baseline_unfolded_params[1] else 0.0,
                 baseline_native_fx,
                 baseline_unfolded_fx,
-                Cp0
+                Cp0,
+                gas_cst=gas_cst
             )
 
 
@@ -1723,10 +1712,6 @@ def fit_oligomer_unfolding_shared_slopes_many_signals(
     # Convert predicted signal into list of arrays per dataset
     predicted = all_signal + result.residual
     predicted_lst = [predicted[start:end] for start, end in zip(dataset_starts, dataset_ends)]
-
-    # Convert the Tm back to Celsius
-    if tm_value is None:
-        global_fit_params[0] = temperature_to_celsius(global_fit_params[0])
 
     return global_fit_params, cov, predicted_lst, result, minimizer
 
@@ -1747,6 +1732,7 @@ def fit_oligomer_unfolding_three_states_shared_slopes_many_signals(
     dh2=None,
     CpTh_value=None,
     method='least_squares',
+    gas_cst=R_gas
 ):
     """
     Vectorized fitting of oligomer thermal unfolding curves for multiple signal types
@@ -2001,6 +1987,7 @@ def fit_oligomer_unfolding_three_states_shared_slopes_many_signals(
                 baseline_unfolded_fx,
                 intercepts_intermediates_arr[i],
                 Cp1, CpTh,
+                gas_cst=gas_cst
             )
 
         return predicted_all - all_signal
@@ -2017,8 +2004,8 @@ def fit_oligomer_unfolding_three_states_shared_slopes_many_signals(
     predicted_lst = [predicted[start:end] for start, end in zip(dataset_starts, dataset_ends)]
 
     # Convert the Tm back to Celsius
-    global_fit_params[0] = temperature_to_celsius(global_fit_params[0])
-    global_fit_params[2] = temperature_to_celsius(global_fit_params[2])
+    #global_fit_params[0] = temperature_to_celsius(global_fit_params[0])
+    #global_fit_params[2] = temperature_to_celsius(global_fit_params[2])
 
     return global_fit_params, cov, predicted_lst, result, minimizer
 
@@ -2038,7 +2025,8 @@ def fit_tc_unfolding_many_signals(
         cp_value=None,
         method='least_squares',
         fit_native_den_slope=True,
-        fit_unfolded_den_slope=True):
+        fit_unfolded_den_slope=True,
+        gas_cst=R_gas):
     """
     Fit thermochemical unfolding curves for many signals using lmfit.
 
@@ -2278,7 +2266,6 @@ def fit_tc_unfolding_many_signals(
             p4_U = p4_Us[sig_id] if baseline_unfolded_params[2] else 0
 
             d = denaturant_concentrations[idx]
-            c = 0
 
             y = signal_fx(
                 T, d, DHm, Tm, Cp0, m0, m1,
@@ -2286,7 +2273,7 @@ def fit_tc_unfolding_many_signals(
                 p1_U, p2_U, p3_U, p4_U,
                 baseline_native_fx,
                 baseline_unfolded_fx,
-                c
+                gas_cst=gas_cst
             )
 
             scale_factor = 1 if factors is None else factors[idx]
@@ -2341,11 +2328,6 @@ def fit_tc_unfolding_many_signals(
     predicted = all_signal + result.residual
     predicted_lst = [predicted[start:end] for start, end in zip(dataset_starts, dataset_ends)]
 
-    # Convert the Tm to Celsius
-    global_fit_params[0] = temperature_to_celsius(global_fit_params[0])
-    low_bounds[0] = temperature_to_celsius(low_bounds[0])
-    high_bounds[0] = temperature_to_celsius(high_bounds[0])
-
     return global_fit_params, cov, predicted_lst, result, minimizer
 
 def fit_oligomer_unfolding_many_signals(
@@ -2361,7 +2343,8 @@ def fit_oligomer_unfolding_many_signals(
         model_scale_factor=False,
         scale_factor_exclude_ids=[],
         cp_value=None,
-        method='least_squares'):
+        method='least_squares',
+        gas_cst=R_gas):
     """
     Fit thermal unfolding curves of oligomers for many signals (optimized variant).
 
@@ -2583,7 +2566,8 @@ def fit_oligomer_unfolding_many_signals(
                 p1_U, p2_U, p3_U,
                 baseline_native_fx,
                 baseline_unfolded_fx,
-                Cp0
+                Cp0,
+                gas_cst=gas_cst
             )
 
             scale_factor = 1 if not model_scale_factor else factors[i]
@@ -2612,7 +2596,7 @@ def fit_oligomer_unfolding_many_signals(
     predicted_lst = [predicted[start:end] for start, end in zip(dataset_starts, dataset_ends)]
 
     # Convert the Tm to Celsius
-    global_fit_params[0] = temperature_to_celsius(global_fit_params[0])
+    #global_fit_params[0] = temperature_to_celsius(global_fit_params[0])
 
     return global_fit_params, cov, predicted_lst, result, minimizer
 
@@ -2629,7 +2613,8 @@ def fit_oligomer_unfolding_three_states_many_signals(
         CpTh_value=None,
         model_scale_factor=False,
         scale_factor_exclude_ids=[],
-        method='least_squares'):
+        method='least_squares',
+        gas_cst=R_gas):
     """
     Fit thermal unfolding curves of oligomers for many signals (optimized variant).
 
@@ -2884,6 +2869,7 @@ def fit_oligomer_unfolding_three_states_many_signals(
                 baseline_unfolded_fx,
                 intercepts_intermediate,
                 Cp1, CpTh,
+                gas_cst=gas_cst
             )
 
             scale_factor = 1 if not model_scale_factor else factors[i]
@@ -2912,8 +2898,8 @@ def fit_oligomer_unfolding_three_states_many_signals(
     predicted_lst = [predicted[start:end] for start, end in zip(dataset_starts, dataset_ends)]
 
     # Convert the Tm to Celsius
-    global_fit_params[0] = temperature_to_celsius(global_fit_params[0])
-    global_fit_params[2] = temperature_to_celsius(global_fit_params[2])
+    #global_fit_params[0] = temperature_to_celsius(global_fit_params[0])
+    #global_fit_params[2] = temperature_to_celsius(global_fit_params[2])
 
     return global_fit_params, cov, predicted_lst, result, minimizer
 
@@ -2928,7 +2914,8 @@ def evaluate_need_to_refit(
         check_tm=True,
         fixed_cp=False,
         threshold=0.05,
-        fit_m0=True
+        fit_m0=True,
+        gas_cst=R_gas
     ):
 
     """
@@ -2997,8 +2984,8 @@ def evaluate_need_to_refit(
     dh_diff = high_bounds[1] - global_fit_params[1]
     # Expand the boundary if the Dh is too close to the boundary
     if dh_diff < 20 and check_dh:
-        high_bounds[1] = global_fit_params[1] + 80
-        p0[1] = global_fit_params[1] + 50
+        high_bounds[1] = global_fit_params[1] + 80 * gas_cst / R_gas
+        p0[1] = global_fit_params[1] + 50 * gas_cst / R_gas
         re_fit = True
 
     id_next = 2
@@ -3008,8 +2995,8 @@ def evaluate_need_to_refit(
         cp_diff = high_bounds[2] - global_fit_params[2]
         # Expand the boundary if the Cp is too close to the boundary
         if cp_diff < 0.25 and check_cp:
-            high_bounds[2] = global_fit_params[2] + 1
-            p0[2] = global_fit_params[2] + 0.5
+            high_bounds[2] = global_fit_params[2] + 1 * gas_cst / R_gas
+            p0[2] = global_fit_params[2] + 0.5 * gas_cst / R_gas
             re_fit = True
         
         id_next += 1
@@ -3019,8 +3006,8 @@ def evaluate_need_to_refit(
         m_diff = high_bounds[id_next] - global_fit_params[id_next]
         # Expand the boundary if the m-value is too close to the boundary
         if m_diff < 0.5:
-            high_bounds[id_next] = global_fit_params[id_next] + 2
-            p0[id_next] = global_fit_params[id_next] + 0.5
+            high_bounds[id_next] = global_fit_params[id_next] + 2 * gas_cst / R_gas
+            p0[id_next] = global_fit_params[id_next] + 0.5 * gas_cst / R_gas
             re_fit = True
 
         # Evaluate if m1 is fitted
@@ -3034,13 +3021,13 @@ def evaluate_need_to_refit(
         m1_diff = high_bounds[id_start] - global_fit_params[id_start]
         # Expand the boundary if the m-value is too close to the boundary
         if m1_diff < 0.1:
-            high_bounds[id_start] = global_fit_params[id_start] + 1
+            high_bounds[id_start] = global_fit_params[id_start] + 1 * gas_cst / R_gas
             re_fit = True
 
         m1_diff = global_fit_params[id_start] - low_bounds[id_start]
         # Expand the boundary if the m-value is too close to the boundary
         if m1_diff < 0.1:
-            low_bounds[id_start] = global_fit_params[id_start] - 1
+            low_bounds[id_start] = global_fit_params[id_start] - 1 * gas_cst / R_gas
             re_fit = True
 
         id_start += 1
@@ -3079,6 +3066,7 @@ def evaluate_need_to_refit_three_state(
         check_tm=True,
         given_cp=False,
         threshold=0.05,
+        gas_cst=R_gas
 ):
     """
     Check and expand parameter bounds when fitted parameters are too close to boundaries or if T1 is smaller than T2
@@ -3194,16 +3182,16 @@ def evaluate_need_to_refit_three_state(
     dh_diff = high_bounds[1] - global_fit_params[1]
     # Expand the boundary if the Dh is too close to the boundary
     if dh_diff < 20 and check_dh:
-        high_bounds[1] = global_fit_params[1] + 80
-        p0[1] = global_fit_params[1] + 50
+        high_bounds[1] = global_fit_params[1] + 80 * gas_cst / R_gas
+        p0[1] = global_fit_params[1] + 50 * gas_cst / R_gas
         re_fit = True
 
     # Check the Dh2 boundary
     dh_diff = high_bounds[3] - global_fit_params[3]
     # Expand the boundary if the Dh is too close to the boundary
     if dh_diff < 20 and check_dh:
-        high_bounds[3] = global_fit_params[3] + 80
-        p0[3] = global_fit_params[3] + 50
+        high_bounds[3] = global_fit_params[3] + 80 * gas_cst / R_gas
+        p0[3] = global_fit_params[3] + 50 * gas_cst / R_gas
         re_fit = True
 
     id_start = 4
@@ -3255,7 +3243,8 @@ def evaluate_fitting_and_refit(
         n = 3,
         threshold=0.05,
         fit_m_value=True,
-        three_state_model=False):
+        three_state_model=False,
+        gas_cst=R_gas):
 
     """
     Evaluate if the fitted parameters are too close to the fitting boundaries.
@@ -3301,6 +3290,8 @@ def evaluate_fitting_and_refit(
         Whether m0 (m-value) is fitted (not in oligomeric models)
     three_state_model : bool, optional
         If a three state model is used different parameters are fitted
+    gas_cst : float, optional
+        Gas constant used for the fitting, default is R_gas
 
     Returns
     -------
@@ -3333,6 +3324,7 @@ def evaluate_fitting_and_refit(
                 check_tm=not limited_tm,
                 given_cp=fixed_cp,
                 threshold=threshold,
+                gas_cst=gas_cst
             )
 
         else:
@@ -3348,6 +3340,7 @@ def evaluate_fitting_and_refit(
                 fixed_cp=fixed_cp,
                 threshold=threshold,
                 fit_m0=fit_m_value,
+                gas_cst=gas_cst
             )
 
         if re_fit:

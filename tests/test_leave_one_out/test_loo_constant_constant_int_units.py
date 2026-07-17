@@ -8,8 +8,9 @@ from pychemelt import Monomer as Sample
 from pychemelt.utils.signals import signal_two_state_tc_unfolding
 
 from pychemelt.utils.math import constant_baseline
-from pychemelt.utils.constants import KCAL_TO_KJ_CST
 import pytest
+
+KCAL_TO_KJ_CST = 4.184
 
 DHm = 120
 Tm = 60 
