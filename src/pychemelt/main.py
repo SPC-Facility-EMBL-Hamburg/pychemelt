@@ -150,10 +150,13 @@ class Sample:
 
     def set_units(self,format='international'):
 
-        self.temp_units_str = "°C" if format != "international" else "°K"
+        self.temp_units_str = "°C" if format != "international" else "K"
         self.gas_cst = R_gas if format != "international" else R_gas_SI
         self.energy_units_str = "kcal" if format != "international" else "kJ"
         self.center_temp_fx = temperature_to_celsius if format != "international" else temperature_to_kelvin
+
+        self.global_min_temp = self.center_temp_fx(self.global_min_temp)
+        self.global_max_temp = self.center_temp_fx(self.global_max_temp)
 
         return None
 
