@@ -398,15 +398,15 @@ class Monomer(Sample):
             'ΔCp ({}/mol/{})'.format(self.energy_units_str,self.temp_units_str),
             'm-value ({}/mol/M)'.format(self.energy_units_str)]
 
-        # Raise an error if self.Tms is None or empty
-        if self.Tms is None or len(self.Tms) == 0:
-            raise ValueError('Tms is None or empty. Please run guess_Cp before calling this method.')
-
         if user_thermodynamic_params_guess is not None:
 
             p0 = user_thermodynamic_params_guess
 
         else:
+
+            # Raise an error if self.Tms is None or empty
+            if self.Tms is None or len(self.Tms) == 0:
+                raise ValueError('Tms is None or empty. Please run guess_Cp before calling this method.')
 
             if self.thermodynamic_params_guess is None:
 

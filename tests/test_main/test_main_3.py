@@ -7,7 +7,7 @@ import pytest
 
 from pychemelt import Monomer as Sample
 from pychemelt.utils.signals import signal_two_state_tc_unfolding
-from pychemelt.utils.math import exponential_baseline, aic_bic_eff
+from pychemelt.utils.math import exponential_baseline
 
 def_params = {
     'DHm': 120,
