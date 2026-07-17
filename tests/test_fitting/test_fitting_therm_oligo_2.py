@@ -27,7 +27,7 @@ CONCS = np.array([10,20,30,40,50])*1e-6
 
 # Model / ground-truth parameters
 DHm_VAL = 250
-Tm_VAL = 70
+Tm_VAL = 70 + 273.15
 CP0_VAL = 1.8
 
 INTERCEPT_N = 100
@@ -43,7 +43,7 @@ rng = np.random.default_rng(RNG_SEED)
 
 def_params = {
     'dHm': DHm_VAL,
-    'Tm': Tm_VAL+273.15,
+    'Tm': Tm_VAL,
     'Cp': CP0_VAL,
     'p1_N': INTERCEPT_N,
     'p2_N': PRE_EXP_N,

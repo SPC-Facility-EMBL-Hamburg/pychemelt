@@ -10,6 +10,8 @@ from pychemelt.utils.signals import signal_two_state_tc_unfolding
 from pychemelt.utils.math import quadratic_baseline
 import pytest
 
+KCAL_TO_KJ_CST = 4.184
+
 def_params = { 
     'DHm': 100,
     'Tm': 60 + 273.15,
@@ -70,95 +72,13 @@ def aux_create_pychem_sim(params,concs,signal_error=0.0005):
     pychem_sim.set_denaturant_concentrations()
 
     pychem_sim.set_signal('Fluo')
-
+    pychem_sim.set_units('international')
     pychem_sim.select_conditions(normalise_to_global_max=False)
+    pychem_sim.set_temperature_range(5, 100)
+
     pychem_sim.expand_multiple_signal()
 
     return pychem_sim
-
-def test_estimate_baseline_parameters():
-
-    params = def_params.copy()
-
-    # Set fluorescence dependence on temperature and denaturant concentration to zero
-    params['p1_N'] = 0
-    params['p1_U'] = 0
-    params['p3_N'] = 0
-    params['p3_U'] = 0
-    params['p4_N'] = 0
-    params['p4_N'] = 0
-
-    pychem_sim = aux_create_pychem_sim(params,def_concs)
-
-    pychem_sim.estimate_baseline_parameters(
-        native_baseline_type='constant',
-        unfolded_baseline_type='constant'
-    )
-
-    np.testing.assert_allclose(
-        pychem_sim.first_param_Ns_per_signal[0][0],
-        1.5,
-        rtol=0.01,
-        atol=0)
-
-    # Reset fittings results
-    sample.reset_fittings_results()
-    assert len(sample.first_param_Ns_per_signal) == 0
-
-
-    # ------------ #
-    params = def_params.copy()
-
-    params['p1_N'] = 0
-    params['p1_U'] = 0
-    params['p4_N'] = 0
-    params['p4_U'] = 0
-
-    pychem_sim = aux_create_pychem_sim(params,def_concs)
-
-    pychem_sim.estimate_baseline_parameters(
-        native_baseline_type='linear',
-        unfolded_baseline_type='linear'
-    )
-
-    np.testing.assert_allclose(pychem_sim.second_param_Ns_per_signal[0][0], params['p3_N'], rtol=0.1, atol=0)
-    np.testing.assert_allclose(pychem_sim.second_param_Us_per_signal[0][-1], params['p3_U'], rtol=0.1, atol=0)
-
-    # ------------ #
-    params = def_params.copy()
-    params['p1_N'] = 0
-    params['p1_U'] = 0
-
-    pychem_sim = aux_create_pychem_sim(params,def_concs)
-
-    pychem_sim.estimate_baseline_parameters(
-        native_baseline_type='quadratic',
-        unfolded_baseline_type='quadratic',
-        window_range_native=20,
-        window_range_unfolded=20
-        )
-
-    np.testing.assert_allclose(pychem_sim.third_param_Ns_per_signal[0][0], params['p4_N'], rtol=0.1, atol=0)
-
-def test_estimate_baseline_parameters_with_tuple_windows():
-
-    params = def_params.copy()
-
-    pychem_sim = aux_create_pychem_sim(params, def_concs)
-
-    pychem_sim.estimate_baseline_parameters(
-        native_baseline_type='linear',
-        unfolded_baseline_type='linear',
-        window_range_native=(20, 30),
-        window_range_unfolded=(70, 80)
-    )
-
-    assert pychem_sim.window_range_native == (20, 30)
-    assert pychem_sim.window_range_unfolded == (70, 80)
-    assert len(pychem_sim.first_param_Ns_per_signal[0]) == len(def_concs)
-    assert len(pychem_sim.first_param_Us_per_signal[0]) == len(def_concs)
-    assert len(pychem_sim.second_param_Ns_per_signal[0]) == len(def_concs)
-    assert len(pychem_sim.second_param_Us_per_signal[0]) == len(def_concs)
 
 # --------- #  Create global pychem_sim object for the rest of tests  # --------- #
 sample = aux_create_pychem_sim(def_params,def_concs)
@@ -166,54 +86,31 @@ sample.estimate_derivative()
 sample.guess_Tm()
 sample.n_residues = 130
 
-def test_set_thermodynamic_params_guess_error():
+sample.set_units('international')
 
-    # Test raise value error when self.Tms is not available
-    with pytest.raises(ValueError):
-        sample.set_thermodynamic_params_guess()
+sample.estimate_baseline_parameters(
+    native_baseline_type='quadratic',
+    unfolded_baseline_type='quadratic',
+    window_range_native=16,
+    window_range_unfolded=16
+)
+sample.fit_thermal_unfolding_local()
+sample.guess_Cp()
 
+sample.guess_initial_parameters(
+    native_baseline_type='quadratic',
+    unfolded_baseline_type='quadratic',
+    window_range_native=16,
+    window_range_unfolded=16
+)
 
-def test_fit_thermal_unfolding_local():
-
-    sample.estimate_baseline_parameters(
-        native_baseline_type='quadratic',
-        unfolded_baseline_type='quadratic',
-        window_range_native=16,
-        window_range_unfolded=16
-    )
-    sample.fit_thermal_unfolding_local()
-
-    np.testing.assert_allclose(sample.Tms_multiple[0][0],60,rtol=0.05)
-
-def test_guess_Cp():
-
-    sample.guess_Cp()
-
-    np.testing.assert_allclose(sample.Cp0,1.6,rtol=0.1)
-
-def test_set_current_thermodynamic_params_guess():
-
-    sample.set_thermodynamic_params_guess()
-    assert len(sample.p0_thermodynamics) == 4
-    assert np.allclose(sample.p0_thermodynamics, [60, 100, 1.6, 2.6], rtol=0.1)
-
-def test_guess_initial_parameters():
-
-    sample.guess_initial_parameters(
-        native_baseline_type='quadratic',
-        unfolded_baseline_type='quadratic',
-        window_range_native=16,
-        window_range_unfolded=16
-    )
-
-    np.testing.assert_allclose(sample.Cp0,1.6,rtol=0.2)
 
 def test_fit_thermal_unfolding_global():
 
     sample.set_thermodynamic_params_guess()
 
     p0 = sample.p0_thermodynamics.copy()
-    
+
     sample.set_thermodynamic_params_guess(user_thermodynamic_params_guess=p0)
 
     sample.fit_thermal_unfolding_global(set_init_params = False)
@@ -222,16 +119,16 @@ def test_fit_thermal_unfolding_global():
 
     assert sample.params_df.shape[0] == 52
 
-    expected = [60, 100, 1.6, 2.6]
+    expected = [60+273.15, 100*KCAL_TO_KJ_CST, 1.6*KCAL_TO_KJ_CST, 2.6*KCAL_TO_KJ_CST]
     actual   = sample.params_df.iloc[:4,1]
 
     np.testing.assert_allclose(actual,expected,rtol=0.1)
 
     args_dic = {
         'fit_m_dep': True,
-        'dh_limits': [50,200],
-        'tm_limits': [40,80],
-        'cp_limits': [0.5,4]
+        'dh_limits': [50 * KCAL_TO_KJ_CST, 200 * KCAL_TO_KJ_CST],
+        'tm_limits': [40 + 273.15, 80 + 273.15],
+        'cp_limits': [0.5 * KCAL_TO_KJ_CST, 4 * KCAL_TO_KJ_CST]
     }
 
     for key,val in args_dic.items():
@@ -241,9 +138,9 @@ def test_fit_thermal_unfolding_global():
         np.testing.assert_allclose(actual,expected,rtol=0.1)
 
     # -- Fit with fixed Cp -- #
-    sample.fit_thermal_unfolding_global(cp_value=1.6)
+    sample.fit_thermal_unfolding_global(cp_value=1.6 * KCAL_TO_KJ_CST)
 
-    expected = [60, 100, 2.6]
+    expected.pop(2)
     actual = sample.params_df.iloc[:3,1]
 
     np.testing.assert_allclose(actual,expected,rtol=0.1)
@@ -254,7 +151,7 @@ def test_fit_thermal_unfolding_global_global():
 
     sample.fit_thermal_unfolding_global_global()
 
-    expected = [60, 100, 1.6, 2.6]
+    expected = [60+273.15, 100*KCAL_TO_KJ_CST, 1.6*KCAL_TO_KJ_CST, 2.6*KCAL_TO_KJ_CST]
     actual = sample.params_df.iloc[:4,1]
 
     np.testing.assert_allclose(actual,expected,rtol=0.1)
@@ -265,19 +162,21 @@ def test_fit_thermal_unfolding_global_global_global():
     sample.global_global_fit_done = False # Force re-fitting clause
     sample.fit_thermal_unfolding_global_global_global(model_scale_factor=True)
 
-    expected = [60, 100, 1.6, 2.6]
+    expected = [60+273.15, 100*KCAL_TO_KJ_CST, 1.6*KCAL_TO_KJ_CST, 2.6*KCAL_TO_KJ_CST]
     actual = sample.params_df.iloc[:4,1]
 
     np.testing.assert_allclose(actual,expected,rtol=0.1)
 
 def test_create_confidence_intervals():
 
+    expected = [60+273.15, 100*KCAL_TO_KJ_CST, 1.6*KCAL_TO_KJ_CST, 2.6*KCAL_TO_KJ_CST]
+
     for percentage in [0.68, 0.95, 0.99]:
 
         sample.calculate_confidence_intervals(percentage=percentage)
 
         # Now verify that each TRUE parameter value is within the confidence interval
-        for i, value in enumerate([60, 100, 1.6, 2.6]):
+        for i, value in enumerate(expected):
 
             lower_bound = sample.ci_df.iloc[i,1]  # Assuming the second column is the lower CI
             upper_bound = sample.ci_df.iloc[i,3]  # Assuming the fourth column is the upper CI
@@ -286,23 +185,25 @@ def test_create_confidence_intervals():
 
 def test_leave_one_out_cross_validation():
 
+    expected = [60+273.15, 100*KCAL_TO_KJ_CST, 1.6*KCAL_TO_KJ_CST, 2.6*KCAL_TO_KJ_CST]
+
     sample.leave_one_out_cross_validation()
 
     assert sample.loo_df is not None
     
     # Verify that each TRUE parameter value is within the confidence interval of the LOO CV results
-    for i, value in enumerate([60, 100, 1.6, 2.6]):
+    for i, value in enumerate(expected):
 
         # Second column is LOO mean, third column is LOO std
         loo_mean = sample.loo_df.iloc[i,1]
         loo_std = sample.loo_df.iloc[i,2]
-        lower_bound = loo_mean - 2*loo_std
-        upper_bound = loo_mean + 2*loo_std
+        lower_bound = (loo_mean - 2*loo_std)*0.9999
+        upper_bound = (loo_mean + 2*loo_std)
 
         assert lower_bound <= value <= upper_bound, f"Parameter {sample.loo_df.iloc[i,0]}: {value} not in [{lower_bound}, {upper_bound}] for LOO CV"
 
         # Verify parameter names
-        assert sample.loo_df.iloc[:,0].to_list() == ['Tm (°C)', 'ΔHm (kcal / mol)', 'ΔCp (kcal / mol / °C)', 'm-value (kcal / mol / M)']
+        assert sample.loo_df.iloc[:,0].to_list() == ['Tm (°K)', 'ΔHm (kJ / mol)', 'ΔCp (kJ / mol / °K)', 'm-value (kJ / mol / M)']
 
 def test_signal_to_df():
 

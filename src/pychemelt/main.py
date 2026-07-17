@@ -7,6 +7,13 @@ import pandas as pd
 import numpy as np
 import os
 
+from .utils.constants import R_gas, R_gas_SI
+
+from .utils.math import (
+    temperature_to_celsius,
+    temperature_to_kelvin
+)
+
 from .utils.files  import (
 
     detect_file_type,
@@ -135,6 +142,20 @@ class Sample:
 
         self.result = None  # lmfit MinimizerResult object from fitting
         self.minimizer = None  # lmfit Minimizer object from fitting
+
+        self.temp_units_str = "°C"
+        self.center_temp_fx = temperature_to_celsius
+        self.energy_units_str = "kcal"
+        self.gas_cst = R_gas
+
+    def set_units(self,format='international'):
+
+        self.temp_units_str = "°C" if format != "international" else "°K"
+        self.gas_cst = R_gas if format != "international" else R_gas_SI
+        self.energy_units_str = "kcal" if format != "international" else "kJ"
+        self.center_temp_fx = temperature_to_celsius if format != "international" else temperature_to_kelvin
+
+        return None
 
     def read_file(self, file):
 
@@ -319,14 +340,13 @@ class Sample:
 
                 self.signal_lst_multiple[i],
                 self.temp_lst_multiple[i],
-                min_temp,
-                max_temp
+                self.center_temp_fx(min_temp),
+                self.center_temp_fx(max_temp)
 
             )
 
-        self.user_min_temp = min_temp
-        self.user_max_temp = max_temp
-
+        self.user_min_temp = self.center_temp_fx(min_temp)
+        self.user_max_temp = self.center_temp_fx(max_temp)
 
         return None
 
@@ -617,23 +637,28 @@ class Sample:
         return None
 
     def create_params_df(self):
+
         """
         Create a dataframe of the parameters
         """
 
-        # convert the first param to Celsius
-        self.global_fit_params[0] = temperature_to_celsius(self.global_fit_params[0])
-        self.low_bounds[0] = temperature_to_celsius(self.low_bounds[0])
-        self.high_bounds[0] = temperature_to_celsius(self.high_bounds[0])
+        params = self.global_fit_params
+        low_bounds = self.low_bounds
+        high_bounds = self.high_bounds
 
+        # Convert Tm to Celsius for the dataframe, if required
+        if self.temp_units_str == "°C":
+            params[0] = temperature_to_celsius(params[0])
+            low_bounds[0] = temperature_to_celsius(low_bounds[0])
+            high_bounds[0] = temperature_to_celsius(high_bounds[0])
 
         # Create a dataframe of the parameters
         self.params_df = pd.DataFrame({
             'Parameter': self.params_names,
-            'Value': self.global_fit_params,
+            'Value': params,
             'Relative error (%)': self.rel_errors,
-            'Fitting low Bound': self.low_bounds,
-            'Fitting high Bound': self.high_bounds
+            'Fitting low Bound': low_bounds,
+            'Fitting high Bound': high_bounds
         })
 
         return None
