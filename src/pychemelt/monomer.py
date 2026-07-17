@@ -354,7 +354,7 @@ class Monomer(Sample):
 
         dg_df = pd.DataFrame({
             "DG ({}/mol)".format(self.energy_units_str): DG,
-            "Temperature (°{})".format(self.temp_units_str): self.center_temp_fx(T_c)
+            "Temperature ({})".format(self.temp_units_str): self.center_temp_fx(T_c)
         })
 
         self.dg_df = dg_df

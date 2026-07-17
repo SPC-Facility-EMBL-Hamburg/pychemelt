@@ -895,9 +895,9 @@ def ci_dict_to_summary_df(ci_dict,percentage=0.95,energy_units_str='kcal',n_digi
          - Upper_CI: Upper bound of the confidence interval
     """
 
-    tm_str = 'Tm (°C)' if energy_units_str == 'kcal' else 'Tm (°K)'
+    tm_str = 'Tm (°C)' if energy_units_str == 'kcal' else 'Tm (K)'
     dh_str = 'ΔHm (kcal / mol)' if energy_units_str == 'kcal' else 'ΔHm (kJ / mol)'
-    cp_str = 'ΔCp (kcal / mol / °C)' if energy_units_str == 'kcal' else 'ΔCp (kJ / mol / °K)'
+    cp_str = 'ΔCp (kcal / mol / °C)' if energy_units_str == 'kcal' else 'ΔCp (kJ / mol / K)'
     m_str = 'm-value (kcal / mol / M)' if energy_units_str == 'kcal' else 'm-value (kJ / mol / M)'
 
     # If Tm is among the parameters, convert confidence intervals back to Celsius
