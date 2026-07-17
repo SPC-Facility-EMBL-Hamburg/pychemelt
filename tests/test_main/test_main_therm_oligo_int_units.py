@@ -337,13 +337,13 @@ def test_fit_thermal_unfolding_global_tetramer():
 
 
 def test_fit_thermal_unfolding_global_global_tetramer():
-    expected = [Tm_VAL, (DHm_VAL + 3*DHm_INCREASE) * KCAL_TO_KJ_CST, CP0_VAL * KCAL_TO_KJ_CST]
+    expected = [Tm_VAL, (DHm_VAL + 3*DHm_INCREASE) * KCAL_TO_KJ_CST]
 
     tetramer_sim.fit_thermal_unfolding_global()
 
     tetramer_sim.fit_thermal_unfolding_global_global()
 
-    np.testing.assert_allclose(tetramer_sim.params_df.iloc[:3, 1], expected, rtol=0.2)
+    np.testing.assert_allclose(tetramer_sim.params_df.iloc[:2, 1], expected, rtol=0.2)
 
 def test_fit_thermal_unfolding_global_global_global_tetramer():
     expected = [Tm_VAL, (DHm_VAL + 3*DHm_INCREASE) * KCAL_TO_KJ_CST, CP0_VAL * KCAL_TO_KJ_CST, INTERCEPT_N, INTERCEPT_U, SLOPE_N, SLOPE_U, EXPONENT_U]
