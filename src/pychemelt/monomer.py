@@ -1493,8 +1493,6 @@ class Monomer(Sample):
             low_bound_Tm = self.center_temp_fx(self.low_bounds[0]) 
             high_bound_Tm = self.center_temp_fx(self.high_bounds[0])
 
-            print(Tm, low_bound_Tm, high_bound_Tm)
-
             tm_is_acceptable = Tm >= low_bound_Tm + 0.5 and Tm <= high_bound_Tm - 0.5
 
             DH = global_fit_params[1]
