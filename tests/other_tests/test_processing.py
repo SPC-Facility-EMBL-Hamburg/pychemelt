@@ -1,5 +1,6 @@
 import numpy as np
 import pytest
+import json
 
 from pychemelt.utils.processing import (
     guess_Tm_from_derivative,
@@ -10,7 +11,9 @@ from pychemelt.utils.processing import (
     parse_number,
     are_all_strings_numeric,
     is_float,
-    transform_to_list
+    transform_to_list,
+    set_condition_indexes_to_false,
+    JsonEncoder
 )
 
 
@@ -192,3 +195,23 @@ def test_estimate_signal_baseline_params_window_with_no_points():
             window_range_unfolded=3.0
         )
 
+def test_set_condition_indexes_to_false():
+
+    conditions = [True, True, True, True]
+
+    set_condition_indexes_to_false(conditions, ["1", "3"])
+
+    assert conditions == [False, True, False, True]
+
+    conditions = [True, True, True, True, True]
+
+    set_condition_indexes_to_false(conditions, ["1-3"])
+
+    assert conditions == [False, False, False, True, True]
+    
+class Unsupported:
+    pass
+
+def test_json_encoder_unsupported_type():
+    with pytest.raises(TypeError, match="Object of type Unsupported is not JSON serializable"):
+        json.dumps({"x": Unsupported()}, cls=JsonEncoder)

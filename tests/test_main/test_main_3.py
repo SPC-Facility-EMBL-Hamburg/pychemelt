@@ -9,6 +9,10 @@ from pychemelt import Monomer as Sample
 from pychemelt.utils.signals import signal_two_state_tc_unfolding
 from pychemelt.utils.math import exponential_baseline
 
+import tempfile
+
+import os
+
 def_params = {
     'DHm': 120,
     'Tm': 65+273.15,
@@ -176,6 +180,34 @@ def test_fit_thermal_unfolding_global_global_global():
     df = pychem_sim.signal_to_df(signal_type='fitted',scaled=False)
 
     assert len(df) == 490
+
+def test_json_save_and_load():
+
+    with tempfile.TemporaryDirectory() as tempdir:
+
+        pychem_sim.save_state_as_json(os.path.join(tempdir, 'test.json'))
+
+        sample2 = Sample()
+        sample2.load_state_from_json(os.path.join(tempdir, 'test.json'))
+
+        assert(type(pychem_sim.signal_dic['Fluo'][0][0]) == type(sample2.signal_dic['Fluo'][0][0]))
+        assert(type(pychem_sim.signal_dic['Fluo'][0]) == type(sample2.signal_dic['Fluo'][0]))
+        assert(type(pychem_sim.signal_dic['Fluo']) == type(sample2.signal_dic['Fluo']))
+
+        assert(type(pychem_sim.temp_dic['Fluo'][0][0]) == type(sample2.temp_dic['Fluo'][0][0]))
+        assert(type(pychem_sim.temp_dic['Fluo'][0]) == type(sample2.temp_dic['Fluo'][0]))
+        assert(type(pychem_sim.temp_dic['Fluo']) == type(sample2.temp_dic['Fluo']))
+
+        assert(type(pychem_sim.conditions) == type(sample2.conditions))
+        assert(type(pychem_sim.labels) == type(sample2.labels))
+        assert(type(pychem_sim.signals) == type(sample2.signals))
+
+        assert(type(pychem_sim.first_param_Ns_per_signal) == type(sample2.first_param_Ns_per_signal))
+        assert(type(pychem_sim.first_param_Ns_per_signal[0]) == type(sample2.first_param_Ns_per_signal[0]))
+
+        assert(type(pychem_sim.t_melting_df_multiple[0]) == type(sample2.t_melting_df_multiple[0]))
+
+        assert(type(pychem_sim.dg_df) == type(sample2.dg_df))
 
 def test_compare_models():
 

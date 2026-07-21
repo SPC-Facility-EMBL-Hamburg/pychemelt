@@ -47,7 +47,9 @@ from .utils.processing import (
     guess_Tm_from_derivative,
     clean_conditions_labels,
     subset_signal_by_temperature,
-    estimate_signal_baseline_params, transform_to_list
+    estimate_signal_baseline_params, 
+    transform_to_list,
+    BASELINE_FX_DIC
 )
 
 
@@ -93,7 +95,6 @@ class Sample:
 
         self.name = name
         self.signal_dic = {}
-        self.deriv_dic = {}
         self.temp_dic = {}
         self.conditions = []
         self.labels = []
@@ -556,18 +557,11 @@ class Sample:
             self.third_param_Ns_per_signal.append(p3Ns)
             self.third_param_Us_per_signal.append(p3Us)
 
-        baseline_fx_dic = {
-            'constant': constant_baseline,
-            'linear': linear_baseline,
-            'quadratic': quadratic_baseline,
-            'exponential': exponential_baseline
-        }
-
         self.window_range_native = window_range_native
         self.window_range_unfolded = window_range_unfolded
 
-        self.baseline_N_fx = baseline_fx_dic[native_baseline_type]
-        self.baseline_U_fx = baseline_fx_dic[unfolded_baseline_type]
+        self.baseline_N_fx = BASELINE_FX_DIC[native_baseline_type]
+        self.baseline_U_fx = BASELINE_FX_DIC[unfolded_baseline_type]
 
         self.native_baseline_type = native_baseline_type
         self.unfolded_baseline_type = unfolded_baseline_type
@@ -631,7 +625,6 @@ class Sample:
         self.signal_lst_expanded_subset = [subset_data(x, 60) for x in self.signal_lst_expanded]
         self.temp_lst_expanded_subset = [subset_data(x, 60) for x in self.temp_lst_expanded]
 
-
         if self.max_points is not None:
             self.signal_lst_expanded = [subset_data(x, self.max_points) for x in self.signal_lst_expanded]
             self.temp_lst_expanded = [subset_data(x, self.max_points) for x in self.temp_lst_expanded]
@@ -665,3 +658,4 @@ class Sample:
         })
 
         return None
+    

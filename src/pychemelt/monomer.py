@@ -5,7 +5,7 @@ The current model assumes the protein is a monomer and that the unfolding is rev
 
 import pandas as pd
 import numpy as np
-
+import json
 
 from itertools import chain
 from copy import deepcopy
@@ -35,7 +35,9 @@ from .utils.processing import (
     transform_to_list,
     ci_dict_to_summary_df,
     re_arrange_loo_initial_params,
-    find_baseline_params
+    find_baseline_params,
+    JsonEncoder,
+    BASELINE_FX_DIC
 )
 
 from .utils.fitting import (
@@ -1895,5 +1897,165 @@ class Monomer(Sample):
         results_df['Reduced χ²'] = results_df['Reduced χ²'].round(4)
 
         self.comparison_df = results_df
+
+        return None
+
+    def save_state_as_json(self,json_file):
+
+        """
+        Save the state of the object to a JSON file.
+        Parameters
+        ----------
+        json_file : str
+            Path to the JSON file where the state will be saved.
+        Returns
+        -------
+        None
+        
+        Notes
+        -----
+        This method serializes the object's attributes to JSON format and writes them to the specified file.
+        It excludes any callable attributes and certain internal attributes that are not JSON serializable (because they include callables)
+        """
+
+        my_object_dict = vars(self)
+        commentDictionary = {'_comment' : 'Use this JSON file to load the session in CheMelt. \
+To parse the data, consider that \
+all 2D arrays where converted into lists with sublists, and each sublist is now a string with \
+elements separated by semicolons.'}
+
+        my_object_dict = {**commentDictionary,**my_object_dict}
+        
+        k_to_remove = ['comparison_df','fit_objects','result','minimizer','kwargs_fit']
+
+        # We remove any callable attributes from the dictionary, as they cannot be serialized to JSON
+        for k,v in my_object_dict.items():
+            if callable(v):
+                k_to_remove.append(k)
+
+        my_object_dict = {k:v for k,v in my_object_dict.items() if k not in k_to_remove}
+
+        json_data = json.dumps(my_object_dict,cls=JsonEncoder,indent=2)
+
+        # Write JSON data to a file
+        with open(json_file, "w") as file:
+            file.write(json_data)
+
+        return None
+
+    def load_state_from_json(self,json_file):
+
+        """
+        Load the state of the object from a JSON file.
+
+        Parameters
+        ----------
+        json_file : str
+            Path to the JSON file containing the saved state.
+
+        Returns
+        -------
+        None
+
+        Notes
+        ----
+        This method reads the JSON file, parses the data, and sets the attributes of the object accordingly. 
+        If you use this method, the data can be fitted directly with fit_thermal_unfolding_global (no need to preprocess the data)
+
+        """
+
+        # Read JSON data from a file
+        with open(json_file, "r") as file:
+            json_data = file.read()
+
+        # Parse JSON data into a dictionary
+        data_dict     = json.loads(json_data)
+        data_dict_new = {}
+
+        # Dataframe directly
+        pd_dataframe_level_1 = ['dg_df','params_df','loo_df','ci_df','baseline_df']
+
+        # List of dataframes
+        pd_dataframe_level_2 = ['t_melting_df_multiple']
+
+        # Numpy arrays directly
+        np_arrays = [
+            'denaturant_concentrations_pre',
+            'denaturant_concentrations',
+            'denaturant_concentrations_expanded',
+            'p0',
+            'low_bounds',
+            'high_bounds',
+            ]
+
+        np_arrays_level_2 = [
+            "temp_lst_expanded",
+            "signal_lst_expanded",
+            "signal_lst_expanded_subset",
+            "temp_lst_expanded_subset"
+            ]
+
+        # List of lists of numpy arrays
+        np_arrays_level_3 = [
+            'signal_lst_pre_multiple',  
+            'signal_lst_multiple',
+            'temp_lst_multiple',
+            'predicted_lst_multiple',
+            'deriv_lst_multiple',
+            'temp_deriv_lst_multiple',
+            'signal_lst_multiple_scaled',
+            'predicted_lst_multiple_scaled'
+        ]
+
+        # Decode file
+        for attribute, value in data_dict.items():
+            
+            if attribute in ['signal_dic','temp_dic']:
+
+                data_dict_new[attribute] = {}
+
+                for subAttribute, subValue in value.items():
+
+                    data_dict_new[attribute][subAttribute] = [np.array(x) for x in subValue]
+
+                setattr(self, attribute, data_dict_new[attribute])
+
+            elif 'comment' in attribute or value is None:
+                continue
+
+            elif attribute in pd_dataframe_level_2:
+                
+                data_dict_new[attribute] = [pd.DataFrame.from_records(x) for x in value]
+
+            elif attribute in pd_dataframe_level_1:
+                data_dict_new[attribute] = pd.DataFrame.from_records(data_dict[attribute])
+
+            elif attribute in np_arrays:
+
+                data_dict_new[attribute] = np.array(value)
+
+            elif attribute in np_arrays_level_2:
+
+                data_dict_new[attribute] = [np.array(x) for x in value]
+
+            elif attribute in np_arrays_level_3:
+                
+                data_dict_new[attribute] = [[np.array(y) for y in x] for x in value]
+
+            else:
+                
+                # Leave as it is
+                data_dict_new[attribute] = value 
+
+        for key, value in data_dict_new.items():
+            setattr(self, key, value)
+
+        if hasattr(self, 'native_baseline_type') and hasattr(self, 'unfolded_baseline_type'):
+
+            self.baseline_N_fx = BASELINE_FX_DIC[self.native_baseline_type]
+            self.baseline_U_fx = BASELINE_FX_DIC[self.unfolded_baseline_type]
+
+        units_format = "default" if self.energy_units_str == 'kcal' else "international"
+        self.set_units(units_format)
 
         return None

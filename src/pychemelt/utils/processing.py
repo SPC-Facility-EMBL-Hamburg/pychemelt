@@ -4,6 +4,7 @@ Author: Osvaldo Burastero
 """
 import re
 import os
+import json
 import numpy as np
 import pandas as pd
 import itertools
@@ -14,7 +15,11 @@ from .math import (
     shift_temperature, 
     relative_errors,
     temperature_to_celsius,
-    temperature_to_kelvin
+    temperature_to_kelvin,
+    constant_baseline,
+    linear_baseline,
+    quadratic_baseline,
+    exponential_baseline
 )
 
 from .fitting import (
@@ -55,8 +60,18 @@ __all__ = [
     'transform_to_list',
     'ci_dict_to_summary_df',
     're_arrange_loo_initial_params',
-    'find_baseline_params'
+    'find_baseline_params',
+    'JsonEncoder',
+    'BASELINE_FX_DIC',
+    'set_condition_indexes_to_false'
 ]
+
+BASELINE_FX_DIC = {
+    'constant': constant_baseline,
+    'linear': linear_baseline,
+    'quadratic': quadratic_baseline,
+    'exponential': exponential_baseline
+}
 
 def transform_to_list(element_or_list):
 
@@ -1092,3 +1107,74 @@ def find_baseline_params(params_df,mode='native'):
         baseline_params[signal] = signal_params[['Value']].values.flatten()     
                 
     return baseline_params
+
+def round_to_significant_digits(arr, digits):
+    rounded_arr = np.zeros_like(arr)
+    for i, value in np.ndenumerate(arr):
+        if np.abs(value) < np.finfo(float).eps:
+            rounded_arr[i] = value  # Keep small numbers close to zero as is
+        else:
+            magnitude = np.power(10, digits - np.floor(np.log10(np.abs(value))) - 1)
+            rounded_arr[i] = np.around(value * magnitude) / magnitude
+    return rounded_arr
+
+class JsonEncoder(json.JSONEncoder):
+    
+    """
+
+    Special formating to export numpy arrays in a JSON file
+
+    1D numpy arrays will be converted to lists
+
+    """
+
+    def default(self, obj):
+
+        if isinstance(obj, pd.DataFrame):
+            
+            return obj.to_dict(orient='records')
+        
+        if isinstance(obj, np.ndarray):
+
+            if np.issubdtype(obj.dtype, np.floating):
+                obj = round_to_significant_digits(obj, 6)
+
+            obj = obj.tolist()
+
+            return obj
+    
+        return super().default(obj)
+
+
+def set_condition_indexes_to_false(conditions,outliers_or_other_data):
+
+    """
+    Given a list of conditions and a list of outliers or other data, set the corresponding indexes in the conditions list to False.
+    
+    Parameters    
+    ----------
+    conditions : list of bool
+        list of conditions to be modified
+    outliers_or_other_data : list of str
+        list of outliers or other data in the format of "1-3" for a range of conditions or "5" for a single condition. 
+        The indexes in the conditions list will be set to False based on this list. They start at 1.
+    Returns
+    -------
+    list of bool
+        modified list of conditions with the specified indexes set to False.
+
+    Notes
+    ----
+    The function assumes that the conditions list is 0-indexed, while the outliers_or_other_data list is 1-indexed. 
+    The function will convert the 1-indexed values to 0-indexed before modifying the conditions list.
+    """
+
+    for i in outliers_or_other_data:
+        if "-" in i:
+            start, end = map(int, i.split("-"))
+            for j in range(start, end + 1):
+                conditions[j - 1] = False
+        else:
+            conditions[int(i) - 1] = False    
+
+    return conditions
