@@ -325,7 +325,7 @@ class Monomer(Sample):
         self.guess_Cp()
 
         # Apply a first fitting round to obtain initial estimates for the thermodynamic parameters
-        self.fit_thermal_unfolding_global(predict_baselines=False)
+        self.fit_thermal_unfolding_global(predict_baselines=False, first_guess=True)
 
         self.thermodynamic_params_guess = self.global_fit_params[:4]
 
@@ -367,6 +367,7 @@ class Monomer(Sample):
             dh_limits=None,
             tm_limits=None,
             cp_value=None,
+            first_guess=False,
             user_thermodynamic_params_guess=None):
 
         """
@@ -433,7 +434,11 @@ class Monomer(Sample):
         else:
 
             tm_lower = p0[0] - 12
-            tm_upper = np.max([self.user_max_temp + 20, p0[0] + 10])
+
+            if first_guess:
+                tm_upper = self.user_max_temp + 60
+            else:
+                tm_upper = p0[0] + 30
 
         low_bounds[0]  = tm_lower
         high_bounds[0] = tm_upper
@@ -516,7 +521,8 @@ class Monomer(Sample):
             tm_limits=None,
             cp_value=None,
             predict_baselines=True,
-            set_init_params=True
+            set_init_params=True,
+            first_guess=False
             ):
 
         """
@@ -563,7 +569,8 @@ class Monomer(Sample):
                 cp_limits=cp_limits,
                 dh_limits=dh_limits,
                 cp_value=cp_value,
-                tm_limits=tm_limits
+                tm_limits=tm_limits,
+                first_guess=first_guess
             )
 
         p0 = self.p0_thermodynamics.copy()

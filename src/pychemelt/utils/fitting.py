@@ -2967,7 +2967,7 @@ def evaluate_need_to_refit(
 
     # Expand the boundary if the Tm is too close to the boundary
     if tm_diff < 6 and check_tm:
-        high_bounds[0] = global_fit_params[0] + 12
+        high_bounds[0] = global_fit_params[0] + 16
         p0[0] = global_fit_params[0] + 5
         re_fit = True
 
@@ -2976,7 +2976,7 @@ def evaluate_need_to_refit(
 
     # Expand the boundary if the Tm is too close to the boundary
     if tm_diff < 6 and check_tm:
-        low_bounds[0] = global_fit_params[0] - 12
+        low_bounds[0] = global_fit_params[0] - 16
         p0[0] = global_fit_params[0] - 5
         re_fit = True
 

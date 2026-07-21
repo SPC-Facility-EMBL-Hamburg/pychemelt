@@ -55,7 +55,7 @@ def test_evaluate_need_to_refit_tm():
         fixed_cp=False
     )
 
-    assert high_bounds[0] == (Tm_VAL + 12) and re_fit
+    assert high_bounds[0] == (Tm_VAL + 16) and re_fit
 
     low_bounds_tm = LOW_BOUNDS.copy()
     low_bounds_tm[0] = 60 + 273.15
@@ -72,7 +72,7 @@ def test_evaluate_need_to_refit_tm():
         fixed_cp=False
     )
 
-    assert low_bounds[0] == (Tm_VAL - 12) and re_fit
+    assert low_bounds[0] == (Tm_VAL - 16) and re_fit
 
 def test_evaluate_need_to_refit_dh():
 
